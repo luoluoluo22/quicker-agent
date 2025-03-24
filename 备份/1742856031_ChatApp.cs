@@ -614,7 +614,7 @@ public static async Task GetAIResponse(Window win, IDictionary<string, object> d
             CurrentStreamContent.Clear();
             
             // 流式响应处理
-            using (var response = await client.PostAsync("/v1/chat/completions", content))
+            using (var response = await client.PostAsync("/chat/completions", content))
             {
                 if (!response.IsSuccessStatusCode)
                 {
@@ -797,7 +797,7 @@ public static async Task GetAIResponse(Window win, IDictionary<string, object> d
         else
         {
             // 非流式响应处理
-            var response = await client.PostAsync("/v1/chat/completions", content);
+            var response = await client.PostAsync("/chat/completions", content);
             
             if (!response.IsSuccessStatusCode)
             {
