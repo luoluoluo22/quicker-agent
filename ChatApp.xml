@@ -166,6 +166,17 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        
+        <Style x:Key="UserMessageStyle" TargetType="Border">
+            <Setter Property="Background" Value="#2B5B4C"/>
+            <Setter Property="BorderBrush" Value="#336699"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="MaxWidth" Value="500"/>
+        </Style>
     </Window.Resources>
     
     <Border CornerRadius="8" Background="#222222" BorderBrush="#333333" BorderThickness="1">
@@ -180,13 +191,19 @@
             
             <!-- 标题栏和控制按钮 -->
             <Grid Grid.Row="0" Background="#222222" Name="TitleBar">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0,0,0">
-                    <Button Name="BtnSettings" Style="{StaticResource SettingsButtonStyle}" Margin="0,0,10,0"/>
-                    <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" Foreground="#03A67D" FontSize="16" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <TextBlock Text="{Binding [WindowTitle]}" Foreground="#CCCCCC" FontSize="14" VerticalAlignment="Center"/>
-                </StackPanel>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
                 
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Grid.Column="0" Name="BtnSettings" Style="{StaticResource SettingsButtonStyle}" 
+                        Margin="10,0,10,0" VerticalAlignment="Center"/>
+                
+                <TextBlock Grid.Column="1" Text="{Binding [ModelName]}" Foreground="#CCCCCC" 
+                           FontSize="14" VerticalAlignment="Center"/>
+                
+                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Name="BtnMinimize" Style="{StaticResource MinimizeButtonStyle}"/>
                     <Button Name="BtnExpand" Style="{StaticResource ExpandButtonStyle}"/>
                     <Button Name="BtnClose" Style="{StaticResource CloseButtonStyle}"/>
@@ -197,52 +214,10 @@
             <TextBlock Grid.Row="1" Text="{Binding [MainPrompt]}" Foreground="White" FontSize="24" 
                        HorizontalAlignment="Center" Margin="0,30,0,20"/>
             
-            <!-- 功能按钮区域 -->
-            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="20,0,20,10">
-                <StackPanel>
-                    <!-- 功能按钮行1 -->
-                    <WrapPanel HorizontalAlignment="Center" Margin="0,10,0,10">
-                        <Button Style="{StaticResource ActionButtonStyle}" Name="BtnCreateImage">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE91B;" FontFamily="Segoe MDL2 Assets" Margin="0,0,8,0"/>
-                                <TextBlock Text="创建图片"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource ActionButtonStyle}" Name="BtnAnalyzeData">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE9D9;" FontFamily="Segoe MDL2 Assets" Margin="0,0,8,0"/>
-                                <TextBlock Text="分析数据"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource ActionButtonStyle}" Name="BtnSurpriseMe">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE8D7;" FontFamily="Segoe MDL2 Assets" Margin="0,0,8,0"/>
-                                <TextBlock Text="给我惊喜"/>
-                            </StackPanel>
-                        </Button>
-                    </WrapPanel>
-                    
-                    <!-- 功能按钮行2 -->
-                    <WrapPanel HorizontalAlignment="Center" Margin="0,10,0,10">
-                        <Button Style="{StaticResource ActionButtonStyle}" Name="BtnAnalyzeImage">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xEB9F;" FontFamily="Segoe MDL2 Assets" Margin="0,0,8,0"/>
-                                <TextBlock Text="分析图片"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource ActionButtonStyle}" Name="BtnMore">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="更多"/>
-                            </StackPanel>
-                        </Button>
-                    </WrapPanel>
-                    
-                    <!-- 聊天消息区域 -->
-                    <ScrollViewer Name="MessageScrollViewer" Height="350" Margin="0,20,0,0">
-                        <StackPanel Name="MessageContainer">
-                            <!-- 消息内容会在C#代码中动态添加 -->
-                        </StackPanel>
-                    </ScrollViewer>
+            <!-- 聊天消息区域 -->
+            <ScrollViewer Grid.Row="2" Name="MessageScrollViewer" VerticalScrollBarVisibility="Auto" Margin="20,0,20,10">
+                <StackPanel Name="MessageContainer">
+                    <!-- 消息内容会在C#代码中动态添加 -->
                 </StackPanel>
             </ScrollViewer>
             
@@ -253,21 +228,28 @@
             <!-- 底部输入区域 -->
             <Grid Grid.Row="4" Background="#2A2A2A" Margin="0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 
-                <Button Grid.Column="0" Name="BtnAttachment" Background="Transparent" BorderBrush="Transparent" 
-                        Foreground="#888888" Margin="15,10,0,10" Width="30" Height="30">
-                    <TextBlock Text="&#xE723;" FontFamily="Segoe MDL2 Assets" FontSize="16"/>
-                </Button>
-                
-                <TextBox Grid.Column="1" Name="TxtInput" Style="{StaticResource InputBoxStyle}" 
-                         Margin="10,10,10,10" MinHeight="40" MaxHeight="80" VerticalContentAlignment="Center"
+                <TextBox Grid.Column="0" Name="TxtInput" Style="{StaticResource InputBoxStyle}" 
+                         Margin="15,10,10,10" MinHeight="40" MaxHeight="80" VerticalContentAlignment="Center"
                          Text="{Binding [InputText], Mode=TwoWay}"/>
                 
-                <Button Grid.Column="2" Name="BtnSend" Style="{StaticResource SendButtonStyle}" Margin="0,0,15,0"/>
+                <Button Grid.Column="1" Name="BtnSend" Margin="0,0,15,0" Width="40" Height="32"
+                        Background="#00AA88" BorderBrush="#00AA88" Foreground="White">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}" 
+                                    BorderBrush="{TemplateBinding BorderBrush}" 
+                                    BorderThickness="0"
+                                    CornerRadius="5">
+                                <TextBlock Text="➤" FontSize="16" HorizontalAlignment="Center" 
+                                         VerticalAlignment="Center" Margin="0,0,0,0"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
             </Grid>
             
             <!-- 设置面板（初始隐藏） -->

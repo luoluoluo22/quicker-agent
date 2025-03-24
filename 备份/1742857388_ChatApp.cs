@@ -154,7 +154,6 @@ public static void OnWindowCreated(Window win, IDictionary<string, object> dataC
         Log(string.Format("已设置HttpClient BaseAddress: {0}", BaseUrl));
         
         // 初始化数据
-        dataContext["WindowTitle"] = "聊天助手";
         dataContext["MainPrompt"] = "有什么可以帮忙的？";
         dataContext["InputText"] = "";
         dataContext["IsStreaming"] = IsStreaming;
@@ -172,9 +171,10 @@ public static void OnWindowCreated(Window win, IDictionary<string, object> dataC
             
             if (!string.IsNullOrWhiteSpace(inParam))
             {
-                Log("将传入参数设置到输入框: " + inParam);
-                dataContext["InputText"] = inParam;
+                // 设置自动发送标记，但不显示在输入框中
                 dataContext["AutoSendMessage"] = true;
+                dataContext["PendingMessage"] = inParam;
+                Log("已设置待发送消息: " + inParam);
             }
         }
         
@@ -211,19 +211,14 @@ public static void OnWindowLoaded(Window win, IDictionary<string, object> dataCo
         var btnMinimize = (Button)win.FindName("BtnMinimize");
         var btnExpand = (Button)win.FindName("BtnExpand");
         var btnSend = (Button)win.FindName("BtnSend");
+        var btnSettings = (Button)win.FindName("BtnSettings");
         var txtInput = (TextBox)win.FindName("TxtInput");
-        var btnAttachment = (Button)win.FindName("BtnAttachment");
         var messageContainer = (StackPanel)win.FindName("MessageContainer");
         var messageScrollViewer = (ScrollViewer)win.FindName("MessageScrollViewer");
         var titleBar = (Grid)win.FindName("TitleBar");
-        var btnSettings = (Button)win.FindName("BtnSettings");
         var settingsPanel = (Border)win.FindName("SettingsPanel");
         var btnSaveSettings = (Button)win.FindName("BtnSaveSettings");
         var btnCancelSettings = (Button)win.FindName("BtnCancelSettings");
-        var btnCreateImage = (Button)win.FindName("BtnCreateImage");
-        var btnAnalyzeData = (Button)win.FindName("BtnAnalyzeData");
-        var btnSurpriseMe = (Button)win.FindName("BtnSurpriseMe");
-        var btnAnalyzeImage = (Button)win.FindName("BtnAnalyzeImage");
         
         Log("成功获取所有UI元素");
 
@@ -232,7 +227,6 @@ public static void OnWindowLoaded(Window win, IDictionary<string, object> dataCo
         btnClose.Click += (s, e) => win.Close();
         btnMinimize.Click += (s, e) => win.WindowState = WindowState.Minimized;
         btnExpand.Click += (s, e) => win.WindowState = win.WindowState == WindowState.Normal ? WindowState.Maximized : WindowState.Normal;
-        btnSettings.Click += (s, e) => { settingsPanel.Visibility = Visibility.Visible; Log("打开设置面板"); };
         
         btnSaveSettings.Click += (s, e) =>
         {
@@ -357,12 +351,12 @@ public static void OnWindowLoaded(Window win, IDictionary<string, object> dataCo
             }
         };
         
-        // 功能按钮事件
-        btnCreateImage.Click += (s, e) => AddActionToInput(txtInput, "创建一张图片：");
-        btnAnalyzeData.Click += (s, e) => AddActionToInput(txtInput, "分析以下数据：");
-        btnSurpriseMe.Click += (s, e) => AddActionToInput(txtInput, "给我一个惊喜，");
-        btnAnalyzeImage.Click += (s, e) => AddActionToInput(txtInput, "分析这张图片：[图片]");
-        btnAttachment.Click += (s, e) => AddActionToInput(txtInput, "[附件]");
+        // 设置按钮事件
+        btnSettings.Click += (s, e) =>
+        {
+            settingsPanel.Visibility = Visibility.Visible;
+            Log("打开设置面板");
+        };
         
         // 初始化HTTP客户端
         try
@@ -385,7 +379,8 @@ public static void OnWindowLoaded(Window win, IDictionary<string, object> dataCo
         Log("窗口加载完成, 模型：" + ModelName);
         
         // 检查是否需要自动发送消息
-        if (dataContext.ContainsKey("AutoSendMessage") && (bool)dataContext["AutoSendMessage"] && !string.IsNullOrWhiteSpace(txtInput.Text))
+        if (dataContext.ContainsKey("AutoSendMessage") && (bool)dataContext["AutoSendMessage"] && 
+            dataContext.ContainsKey("PendingMessage") && !string.IsNullOrWhiteSpace(dataContext["PendingMessage"].ToString()))
         {
             Log("检测到自动发送标记，准备自动发送消息...");
             
@@ -394,10 +389,16 @@ public static void OnWindowLoaded(Window win, IDictionary<string, object> dataCo
             {
                 try
                 {
-                    Log("执行自动发送消息: " + txtInput.Text);
+                    string pendingMessage = dataContext["PendingMessage"].ToString();
+                    Log("执行自动发送消息: " + pendingMessage);
+                    
+                    // 临时设置消息到输入框并发送
+                    txtInput.Text = pendingMessage;
                     SendMessage(win, dataContext, txtInput, messageContainer, messageScrollViewer);
                     
-                    // 发送后清除标记
+                    // 清空输入框和待发送消息
+                    txtInput.Text = "";
+                    dataContext["PendingMessage"] = "";
                     dataContext["AutoSendMessage"] = false;
                     
                     Log("自动发送消息完成");
@@ -614,7 +615,7 @@ public static async Task GetAIResponse(Window win, IDictionary<string, object> d
             CurrentStreamContent.Clear();
             
             // 流式响应处理
-            using (var response = await client.PostAsync("/chat/completions", content))
+            using (var response = await client.PostAsync("/v1/chat/completions", content))
             {
                 if (!response.IsSuccessStatusCode)
                 {
@@ -797,7 +798,7 @@ public static async Task GetAIResponse(Window win, IDictionary<string, object> d
         else
         {
             // 非流式响应处理
-            var response = await client.PostAsync("/chat/completions", content);
+            var response = await client.PostAsync("/v1/chat/completions", content);
             
             if (!response.IsSuccessStatusCode)
             {
@@ -838,8 +839,8 @@ public static void AddMessage(StackPanel container, string message, bool isUser)
     {
         var panel = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(45, 45, 45)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(64, 64, 64)),
+            Background = new SolidColorBrush(isUser ? Color.FromRgb(43, 91, 76) : Color.FromRgb(45, 45, 45)),
+            BorderBrush = new SolidColorBrush(isUser ? Color.FromRgb(51, 102, 153) : Color.FromRgb(64, 64, 64)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(5),
             Margin = new Thickness(5),
@@ -853,7 +854,8 @@ public static void AddMessage(StackPanel container, string message, bool isUser)
             Background = null,
             BorderThickness = new Thickness(0),
             IsReadOnly = true,
-            Foreground = new SolidColorBrush(Colors.White)
+            Foreground = new SolidColorBrush(Colors.White),
+            HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
         };
 
         var doc = new FlowDocument();
@@ -917,14 +919,6 @@ public static void AddMessage(StackPanel container, string message, bool isUser)
         Log("添加消息到界面失败", ex);
         throw;
     }
-}
-
-// 添加预设文本到输入框
-public static void AddActionToInput(TextBox txtInput, string action)
-{
-    txtInput.Text = action + txtInput.Text;
-    txtInput.Focus();
-    txtInput.SelectionStart = txtInput.Text.Length;
 }
 
 // 获取模型简短名称
