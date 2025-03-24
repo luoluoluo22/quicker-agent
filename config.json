@@ -1,0 +1,7 @@
+{
+    "ModelName": "Qwen/Qwen2.5-7B-Instruct",
+    "ApiKey": "sk-ywhprjugjlrzlmlfijphufltvjtokechtglwiigktcyklicz",
+    "BaseUrl": "https://api.siliconflow.cn/v1",
+    "Temperature": 0.7,
+    "MaxTokens": 2000
+} 
