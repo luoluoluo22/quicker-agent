@@ -1,7 +1,0 @@
-{
-    "ApiKey": "your_api_key_here",
-    "BaseUrl": "https://api.example.com",
-    "ModelName": "model_name_here",
-    "Temperature": 0.7,
-    "MaxTokens": 2000
-} 

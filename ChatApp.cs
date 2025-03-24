@@ -25,9 +25,9 @@ public static string SelectedModel = "系统极客";
 public static HttpClient client = new HttpClient();
 
 // 模型配置
-public static string ModelName = "";
+public static string ModelName = "Qwen/Qwen2.5-7B-Instruct";
 public static string ApiKey = "";
-public static string BaseUrl = "";
+public static string BaseUrl = "https://api.siliconflow.cn/v1";
 
 public static bool IsStreaming = true;
 public static StringBuilder CurrentStreamContent = new StringBuilder();
@@ -37,52 +37,6 @@ public static string LogFilePath = Path.Combine(
     AppDomain.CurrentDomain.BaseDirectory,
     "ChatAppLog.txt"
 );
-
-// 配置文件路径
-public static string ConfigFilePath = Path.Combine(
-    AppDomain.CurrentDomain.BaseDirectory,
-    "config.json"
-);
-
-// 加载配置文件
-public static void LoadConfig()
-{
-    try
-    {
-        if (File.Exists(ConfigFilePath))
-        {
-            string jsonContent = File.ReadAllText(ConfigFilePath);
-            var config = JsonConvert.DeserializeObject<Dictionary<string, object>>(jsonContent);
-            
-            ModelName = config["ModelName"].ToString();
-            ApiKey = config["ApiKey"].ToString();
-            BaseUrl = config["BaseUrl"].ToString();
-            
-            Log("成功加载配置文件");
-        }
-        else
-        {
-            Log("配置文件不存在，使用默认配置");
-            // 创建默认配置文件
-            var defaultConfig = new Dictionary<string, object>
-            {
-                ["ModelName"] = "your_model_name_here",
-                ["ApiKey"] = "your_api_key_here",
-                ["BaseUrl"] = "your_base_url_here"
-            };
-            
-            File.WriteAllText(ConfigFilePath, 
-                JsonConvert.SerializeObject(defaultConfig, Formatting.Indented));
-            
-            throw new Exception("请先配置config.json文件");
-        }
-    }
-    catch (Exception ex)
-    {
-        Log("加载配置文件失败", ex);
-        throw;
-    }
-}
 
 public static void Log(string message, Exception ex = null)
 {
@@ -130,14 +84,11 @@ public static void OnWindowCreated(Window win, IDictionary<string, object> dataC
 
     try
     {
-        // 加载配置文件
-        LoadConfig();
-        
         // 初始化数据
         dataContext["WindowTitle"] = "聊天助手";
         dataContext["MainPrompt"] = "有什么可以帮忙的？";
         dataContext["InputText"] = "";
-        dataContext["CurrentModel"] = "ChatGPT";
+        dataContext["CurrentModel"] = GetShortModelName(ModelName);
         
         // 模型配置数据
         dataContext["ModelName"] = ModelName;

@@ -1,12 +1,16 @@
 # Quicker Open Chat
 
 一个基于Quicker平台的聊天应用，支持多种AI模型对话。
+![演示效果](./img/1.gif)
 
-## 配置说明
+## 快速安装
+[动作链接](https://getquicker.net/Sharedaction?code=81a560bf-c9a5-4dab-355b-08dd6a2b7d8c)
 
-1. 复制 `config.template.json` 为 `config.json`
-2. 在 `config.json` 中填入您的API密钥和其他配置信息
-3. 确保 `config.json` 已被添加到 `.gitignore` 中，不会被提交到代码仓库
+![演示效果](./img/3.png)
+![演示效果](./img/4.png)
+
+如何在quicker中设置快速调用动作
+![演示效果](./img/2.gif)
 
 ## 功能特点
 
@@ -20,11 +24,11 @@
 
 1. 在Quicker中创建新动作
 2. 将代码复制到动作中
-3. 配置相应的API密钥和模型参数
+3. 在界面设置中配置相应的API密钥和模型参数
 4. 运行动作开始对话
 
 ## 注意事项
 
-- 请勿在代码中直接硬编码API密钥
+- API密钥等敏感信息请在Quicker界面中设置
 - 定期检查日志文件大小
-- 建议定期备份配置文件 
+- 建议使用Quicker的变量功能管理配置 
