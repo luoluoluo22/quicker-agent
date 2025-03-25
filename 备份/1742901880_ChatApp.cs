@@ -669,28 +669,87 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
 {
     try
     {
+        // 设置RichTextBox
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            try
+            {
+                // 创建初始UI，指示用户开始接收响应
+                messageBox.Document.Blocks.Clear();
+                var paragraph = new Paragraph();
+                var run = new Run("开始接收响应...");
+                run.Foreground = Brushes.Green;
+                paragraph.Inlines.Add(run);
+                messageBox.Document.Blocks.Add(paragraph);
+                
+                // 强制更新以显示初始内容
+                messageBox.UpdateLayout();
+                scrollViewer.UpdateLayout();
+                scrollViewer.ScrollToBottom();
+            }
+            catch (Exception ex)
+            {
+                Log("设置初始UI失败", ex);
+            }
+        });
+        
+        Log("开始接收流式响应内容...");
+        
+        // 为线程安全的UI更新设置一个独立的Dispatcher对象
+        Dispatcher uiDispatcher = Dispatcher.CurrentDispatcher;
+        
         using (var stream = await response.Content.ReadAsStreamAsync())
         using (var reader = new StreamReader(stream))
         {
             StringBuilder currentMessage = new StringBuilder();
             string currentLine;
+            int lineCounter = 0;
+            bool receivedAnyContent = false;
+            
+            // 记录开始接收的时间
+            var startTime = DateTime.Now;
+            Log(string.Format("流式响应开始接收时间: {0}", startTime.ToString("yyyy-MM-dd HH:mm:ss.fff")));
             
             while ((currentLine = await reader.ReadLineAsync()) != null)
             {
-                if (string.IsNullOrWhiteSpace(currentLine)) continue;
+                lineCounter++;
+                var currentTime = DateTime.Now;
                 
-                Log("流式数据行: " + currentLine);
+                if (string.IsNullOrWhiteSpace(currentLine)) 
+                {
+                    Log(string.Format("收到空行 #{0} 时间: {1}", lineCounter, currentTime.ToString("HH:mm:ss.fff")));
+                    continue;
+                }
+                
+                // 记录每行原始响应
+                if (lineCounter <= 10 || lineCounter % 20 == 0)
+                {
+                    var truncatedLine = currentLine.Length > 100 ? 
+                        currentLine.Substring(0, 100) + "..." : 
+                        currentLine;
+                    Log(string.Format("收到原始数据行 #{0} [{1}]: {2}", 
+                        lineCounter, 
+                        currentTime.ToString("HH:mm:ss.fff"),
+                        truncatedLine));
+                }
+                
+                // 记录流式数据长度
+                if (currentMessage.Length % 200 == 0 && currentMessage.Length > 0)
+                {
+                    Log(string.Format("已接收流式数据长度: {0}, 时间: {1}", 
+                        currentMessage.Length,
+                        currentTime.ToString("HH:mm:ss.fff")));
+                }
                 
                 if (currentLine == "data: [DONE]")
                 {
-                    Log("流式响应结束标记: [DONE]");
+                    Log(string.Format("流式响应结束标记: [DONE], 时间: {0}", currentTime.ToString("HH:mm:ss.fff")));
                     break;
                 }
                 
                 if (currentLine.StartsWith("data: "))
                 {
                     var jsonData = currentLine.Substring(6);
-                    Log("解析的JSON: " + jsonData);
                     
                     try
                     {
@@ -708,31 +767,57 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
                                     
                                     if (!string.IsNullOrEmpty(content))
                                     {
-                                        Log("从delta.content获取内容: " + content);
+                                        receivedAnyContent = true;
                                         currentMessage.Append(content);
                                         
-                                        // 使用Dispatcher确保UI更新在主线程执行
-                                        await Application.Current.Dispatcher.InvokeAsync(() =>
+                                        // 记录内容更新
+                                        if (currentMessage.Length <= 50 || currentMessage.Length % 1000 == 0)
+                                        {
+                                            Log(string.Format("解析到内容更新 [{0}], 内容长度: {1}", 
+                                                currentTime.ToString("HH:mm:ss.fff"),
+                                                currentMessage.Length));
+                                        }
+                                        
+                                        // 创建要显示的内容拷贝，避免多线程访问问题
+                                        string contentToDisplay = currentMessage.ToString();
+                                        
+                                        // 使用新的线程安全方式更新UI
+                                        Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                                         {
                                             try
                                             {
-                                                var document = messageBox.Document;
-                                                document.Blocks.Clear();
+                                                // 更新界面
+                                                messageBox.Document.Blocks.Clear();
                                                 var paragraph = new Paragraph();
-                                                paragraph.Inlines.Add(new Run(currentMessage.ToString()));
-                                                document.Blocks.Add(paragraph);
+                                                var run = new Run(contentToDisplay);
+                                                run.Foreground = Brushes.Black;  // 使用黑色文本
+                                                paragraph.Inlines.Add(run);
+                                                messageBox.Document.Blocks.Add(paragraph);
                                                 
-                                                // 记录更新状态
-                                                Log(string.Format("UI成功更新，当前长度: {0}", currentMessage.Length));
+                                                // 强制视觉刷新
+                                                messageBox.Visibility = Visibility.Hidden;
+                                                messageBox.Visibility = Visibility.Visible;
                                                 
-                                                // 确保滚动到最新内容
-                                                scrollViewer.ScrollToBottom();
+                                                // 确保滚动到底部
+                                                scrollViewer.ScrollToEnd();
+                                                
+                                                if (currentMessage.Length <= 50 || currentMessage.Length % 200 == 0)
+                                                {
+                                                    Log(string.Format("UI异步更新 [{0}], 显示内容长度: {1}", 
+                                                        DateTime.Now.ToString("HH:mm:ss.fff"),
+                                                        contentToDisplay.Length));
+                                                }
                                             }
                                             catch (Exception ex)
                                             {
-                                                Log("UI更新失败", ex);
+                                                Log(string.Format("UI异步更新失败 [{0}]: {1}", 
+                                                    DateTime.Now.ToString("HH:mm:ss.fff"), 
+                                                    ex.Message));
                                             }
-                                        }, DispatcherPriority.Background);
+                                        }), DispatcherPriority.Send);
+                                        
+                                        // 给UI线程一些时间来处理更新
+                                        await Task.Delay(5);
                                     }
                                 }
                             }
@@ -740,35 +825,101 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
                     }
                     catch (JsonException ex)
                     {
-                        Log("JSON解析失败", ex);
+                        Log(string.Format("JSON解析失败 [{0}]: {1}", currentTime.ToString("HH:mm:ss.fff"), ex.Message));
                     }
                 }
             }
             
-            // 流式响应结束后，再次确保显示完整内容
-            await Application.Current.Dispatcher.InvokeAsync(() =>
+            // 流式响应结束后，记录总体情况
+            var endTime = DateTime.Now;
+            var totalTime = (endTime - startTime).TotalMilliseconds;
+            Log(string.Format("流式响应总接收时间: {0}ms, 行数: {1}, 内容长度: {2}", 
+                totalTime.ToString("0.00"),
+                lineCounter,
+                currentMessage.Length));
+            
+            // 确保显示完整内容
+            string finalContent = currentMessage.ToString();
+            Application.Current.Dispatcher.Invoke(() =>
             {
                 try
                 {
-                    var document = messageBox.Document;
-                    document.Blocks.Clear();
-                    var paragraph = new Paragraph();
-                    paragraph.Inlines.Add(new Run(currentMessage.ToString()));
-                    document.Blocks.Add(paragraph);
+                    // 如果没有收到任何内容，显示错误信息
+                    if (!receivedAnyContent || currentMessage.Length == 0)
+                    {
+                        var document = messageBox.Document;
+                        document.Blocks.Clear();
+                        var paragraph = new Paragraph();
+                        paragraph.Inlines.Add(new Run("服务器返回了空响应，请重试或检查网络连接。"));
+                        document.Blocks.Add(paragraph);
+                        
+                        // 将错误消息添加到消息历史中
+                        var messageDict = new Dictionary<string, object>();
+                        messageDict.Add("role", "assistant");
+                        messageDict.Add("content", "服务器返回了空响应，请重试或检查网络连接。");
+                        messageDict.Add("timestamp", DateTime.Now);
+                        Messages.Add(messageDict);
+                        
+                        Log("API响应为空，已显示错误提示");
+                    }
+                    else
+                    {
+                        var document = messageBox.Document;
+                        document.Blocks.Clear();
+                        var paragraph = new Paragraph();
+                        paragraph.Inlines.Add(new Run(finalContent));
+                        document.Blocks.Add(paragraph);
+                        
+                        // 将AI回复添加到消息历史中
+                        var messageDict = new Dictionary<string, object>();
+                        messageDict.Add("role", "assistant");
+                        messageDict.Add("content", finalContent);
+                        messageDict.Add("timestamp", DateTime.Now);
+                        Messages.Add(messageDict);
+                        
+                        Log(string.Format("API响应完成 (流式), 总长度: {0}, 已添加到历史记录", finalContent.Length));
+                    }
                     
-                    Log(string.Format("API响应完成 (流式)，总长度: {0}", currentMessage.Length));
                     scrollViewer.ScrollToBottom();
                 }
                 catch (Exception ex)
                 {
                     Log("最终UI更新失败", ex);
                 }
-            }, DispatcherPriority.Normal);
+            });
         }
     }
     catch (Exception ex)
     {
         Log("处理流式响应时发生错误", ex);
+        
+        // 显示错误信息到UI
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            try
+            {
+                var document = messageBox.Document;
+                document.Blocks.Clear();
+                var paragraph = new Paragraph();
+                paragraph.Inlines.Add(new Run("处理响应时出错: " + ex.Message));
+                document.Blocks.Add(paragraph);
+                
+                // 将错误消息添加到消息历史中
+                var messageDict = new Dictionary<string, object>();
+                messageDict.Add("role", "assistant");
+                messageDict.Add("content", "处理响应时出错: " + ex.Message);
+                messageDict.Add("timestamp", DateTime.Now);
+                Messages.Add(messageDict);
+                
+                scrollViewer.ScrollToBottom();
+                Log("已显示错误信息到UI");
+            }
+            catch
+            {
+                Log("无法显示错误信息到UI");
+            }
+        });
+        
         throw;
     }
 }
