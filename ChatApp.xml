@@ -169,9 +169,9 @@
         
         <Style x:Key="UserMessageStyle" TargetType="Border">
             <Setter Property="Background" Value="#2B5B4C"/>
-            <Setter Property="BorderBrush" Value="#336699"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="10"/>
             <Setter Property="Margin" Value="5"/>
             <Setter Property="Padding" Value="10"/>
             <Setter Property="HorizontalAlignment" Value="Right"/>

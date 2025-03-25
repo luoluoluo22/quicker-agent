@@ -591,9 +591,9 @@ public static async Task GetAIResponse(Window win, IDictionary<string, object> d
         var aiMessagePanel = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(45, 45, 45)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(64, 64, 64)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(5),
+            BorderBrush = new SolidColorBrush(Colors.Transparent),
+            BorderThickness = new Thickness(0),
+            CornerRadius = new CornerRadius(10),
             Margin = new Thickness(5),
             Padding = new Thickness(10),
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -928,9 +928,9 @@ public static void AddMessage(StackPanel container, string message, bool isUser)
         var panel = new Border
         {
             Background = new SolidColorBrush(isUser ? Color.FromRgb(43, 91, 76) : Color.FromRgb(45, 45, 45)),
-            BorderBrush = new SolidColorBrush(isUser ? Color.FromRgb(51, 102, 153) : Color.FromRgb(64, 64, 64)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(5),
+            BorderBrush = new SolidColorBrush(Colors.Transparent),
+            BorderThickness = new Thickness(0),
+            CornerRadius = new CornerRadius(10),
             Margin = new Thickness(5),
             Padding = new Thickness(10),
             HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
