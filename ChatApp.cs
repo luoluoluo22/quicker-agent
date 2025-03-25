@@ -950,10 +950,12 @@ public static void AddMessage(StackPanel container, string message, bool isUser)
             BorderThickness = new Thickness(0),
             IsReadOnly = true,
             Foreground = new SolidColorBrush(Colors.White),
-            HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
+            HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+            FontSize = 14  // 增大字体大小
         };
 
         var doc = new FlowDocument();
+        doc.LineHeight = 1.5;  // 设置1.5倍行间距
         
         if (message.Contains("```"))
         {
