@@ -12,6 +12,7 @@
         ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
+        FontFamily="微软雅黑, Segoe UI Emoji"
         mc:Ignorable="d">
     <Window.Resources>
         <Style x:Key="CloseButtonStyle" TargetType="Button">
@@ -112,6 +113,7 @@
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontFamily" Value="微软雅黑, Segoe UI Emoji"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="AcceptsReturn" Value="True"/>
             <Setter Property="Template">
@@ -200,7 +202,7 @@
                         Margin="10,0,10,0" VerticalAlignment="Center"/>
                 
                 <TextBlock Grid.Column="1" Text="{Binding [ModelName]}" Foreground="#CCCCCC" 
-                           FontSize="14" VerticalAlignment="Center"/>
+                           FontSize="14" VerticalAlignment="Center" FontFamily="Segoe UI Emoji, Segoe UI"/>
                 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Name="BtnMinimize" Style="{StaticResource MinimizeButtonStyle}"/>

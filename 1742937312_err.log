@@ -1,2 +1,0 @@
-c:\Users\Administrator\AppData\Local\Temp\CSSCRIPT\dynamic\16288.e5aa2dbf-0f2b-4a7d-b3c0-eb93cae2a7a6.tmp(789,41): warning CS4014: 由于不等待此调用，因此会在此调用完成前继续执行当前方法。请考虑向此调用的结果应用“await”运算符。
-c:\Users\Administrator\AppData\Local\Temp\CSSCRIPT\dynamic\16288.e5aa2dbf-0f2b-4a7d-b3c0-eb93cae2a7a6.tmp(958,13): error CS0117: “System.Windows.Controls.RichTextBox”并不包含“TextAlignment”的定义

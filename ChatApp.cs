@@ -58,7 +58,8 @@ public static void Log(string message, Exception ex = null)
             }
         }
         
-        File.AppendAllText(LogFilePath, logMessage + "\n\n");
+        // 不再写入文件，只输出到调试窗口
+        // File.AppendAllText(LogFilePath, logMessage + "\n\n");
         Debug.WriteLine(logMessage);
     }
     catch (Exception logEx)
@@ -69,14 +70,15 @@ public static void Log(string message, Exception ex = null)
 
 public static void ClearLog()
 {
-    try
-    {
-        if (File.Exists(LogFilePath))
-        {
-            File.Delete(LogFilePath);
-        }
-    }
-    catch { }
+    // 不再清理日志文件
+    //try
+    //{
+    //    if (File.Exists(LogFilePath))
+    //    {
+    //        File.Delete(LogFilePath);
+    //    }
+    //}
+    //catch { }
 }
 
 // 从数据映射加载配置
@@ -606,7 +608,8 @@ public static async Task GetAIResponse(Window win, IDictionary<string, object> d
             IsReadOnly = true,
             Foreground = new SolidColorBrush(Colors.White),
             HorizontalAlignment = HorizontalAlignment.Left,
-            FontSize = 14
+            FontSize = 14,
+            FontFamily = new FontFamily("微软雅黑, Segoe UI Emoji")
         };
         aiMessagePanel.Child = aiRichTextBox;
         messageContainer.Children.Add(aiMessagePanel);
@@ -788,14 +791,7 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
                                             try
                                             {
                                                 // 更新界面
-                                                messageBox.Document.Blocks.Clear();
-                                                messageBox.FontSize = 14;
-                                                var paragraph = new Paragraph();
-                                                
-                                                var run = new Run(contentToDisplay);
-                                                run.Foreground = Brushes.White;  // 使用白色文本
-                                                paragraph.Inlines.Add(run);
-                                                messageBox.Document.Blocks.Add(paragraph);
+                                                messageBox.Document = FormatMessageDocument(contentToDisplay);
                                                 
                                                 // 强制视觉刷新
                                                 messageBox.Visibility = Visibility.Hidden;
@@ -860,11 +856,8 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
                     }
                     else
                     {
-                        var document = messageBox.Document;
-                        document.Blocks.Clear();
-                        var paragraph = new Paragraph();
-                        paragraph.Inlines.Add(new Run(finalContent));
-                        document.Blocks.Add(paragraph);
+                        // 使用Markdown格式化方法处理最终内容
+                        messageBox.Document = FormatMessageDocument(finalContent);
                         
                         // 将AI回复添加到消息历史中
                         var messageDict = new Dictionary<string, object>();
@@ -944,59 +937,13 @@ public static void AddMessage(StackPanel container, string message, bool isUser)
             IsReadOnly = true,
             Foreground = new SolidColorBrush(Colors.White),
             HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-            FontSize = 14
+            FontSize = 14,
+            FontFamily = new FontFamily("微软雅黑, Segoe UI Emoji")
         };
 
-        var doc = new FlowDocument();
+        // 使用新的Markdown格式化方法
+        richTextBox.Document = FormatMessageDocument(message);
 
-        if (message.Contains("```"))
-        {
-            var parts = message.Split(new[] { "```" }, StringSplitOptions.None);
-            for (int i = 0; i < parts.Length; i++)
-            {
-                if (i % 2 == 0)
-                {
-                    if (!string.IsNullOrEmpty(parts[i]))
-                    {
-                        doc.Blocks.Add(new Paragraph(new Run(parts[i].Trim())));
-                    }
-                }
-                else
-                {
-                    var codeLines = parts[i].Split('\n');
-                    var language = "";
-                    var code = parts[i];
-
-                    if (codeLines.Length > 0 && !string.IsNullOrEmpty(codeLines[0]))
-                    {
-                        language = codeLines[0].Trim();
-                        
-                        // 跳过第一行（语言标识），拼接剩余代码
-                        code = "";
-                        for (int j = 1; j < codeLines.Length; j++)
-                        {
-                            code += codeLines[j];
-                            if (j < codeLines.Length - 1)
-                                code += "\n";
-                        }
-                    }
-
-                    var codePara = new Paragraph(new Run(code))
-                    {
-                        Background = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
-                        FontFamily = new FontFamily("Consolas"),
-                        Margin = new Thickness(0, 5, 0, 5)
-                    };
-                    doc.Blocks.Add(codePara);
-                }
-            }
-        }
-        else
-        {
-            doc.Blocks.Add(new Paragraph(new Run(message)));
-        }
-
-        richTextBox.Document = doc;
         panel.Child = richTextBox;
         container.Children.Add(panel);
         
@@ -1020,6 +967,7 @@ public static string GetShortModelName(string fullName)
 public static FlowDocument FormatMessageDocument(string message)
 {
     var doc = new FlowDocument();
+    doc.FontFamily = new FontFamily("微软雅黑, Segoe UI Emoji");  // 设置为微软雅黑
     
     if (message.Contains("```"))
     {
@@ -1056,8 +1004,10 @@ public static FlowDocument FormatMessageDocument(string message)
                 var codePara = new Paragraph(new Run(code))
                 {
                     Background = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
-                    FontFamily = new FontFamily("Consolas"),
-                    Margin = new Thickness(0, 5, 0, 5)
+                    FontFamily = new FontFamily("Consolas, Courier New, monospace"),
+                    Margin = new Thickness(0, 0, 0, 0),
+                    Foreground = new SolidColorBrush(Colors.LightGray),
+                    Padding = new Thickness(10)
                 };
                 doc.Blocks.Add(codePara);
             }
