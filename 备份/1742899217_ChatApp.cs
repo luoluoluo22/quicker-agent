@@ -756,14 +756,7 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
                     paragraph.Inlines.Add(new Run(currentMessage.ToString()));
                     document.Blocks.Add(paragraph);
                     
-                    // 将AI回复添加到消息历史中
-                    var messageDict = new Dictionary<string, object>();
-                    messageDict.Add("role", "assistant");
-                    messageDict.Add("content", currentMessage.ToString());
-                    messageDict.Add("timestamp", DateTime.Now);
-                    Messages.Add(messageDict);
-                    
-                    Log(string.Format("API响应完成 (流式)，总长度: {0}，已添加到历史记录", currentMessage.Length));
+                    Log(string.Format("API响应完成 (流式)，总长度: {0}", currentMessage.Length));
                     scrollViewer.ScrollToBottom();
                 }
                 catch (Exception ex)
