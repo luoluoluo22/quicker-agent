@@ -788,12 +788,9 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
                                             {
                                                 // 更新界面
                                                 messageBox.Document.Blocks.Clear();
-                                                messageBox.FontSize = 14; // 增大字体
                                                 var paragraph = new Paragraph();
-                                                paragraph.LineHeight = 1.2; // 设置行间距
-                                                
                                                 var run = new Run(contentToDisplay);
-                                                run.Foreground = Brushes.White;  // 使用白色文本
+                                                run.Foreground = Brushes.Black;  // 使用黑色文本
                                                 paragraph.Inlines.Add(run);
                                                 messageBox.Document.Blocks.Add(paragraph);
                                                 

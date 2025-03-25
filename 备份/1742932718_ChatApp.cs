@@ -20,11 +20,13 @@ using System.IO;
 using System.Diagnostics;
 using System.Linq;
 using System.Windows.Threading;
+using System.Threading;
 
 // 全局变量
 public static List<Dictionary<string, object>> Messages = new List<Dictionary<string, object>>();
 public static string SelectedModel = "系统极客";
 public static HttpClient client = new HttpClient();
+public static int keyEventSequence = 0; // 添加此变量用于跟踪事件序列号
 
 // 模型配置 - 这些变量将从数据映射中获取
 public static string ModelName = "";
@@ -133,11 +135,7 @@ public static void OnWindowCreated(Window win, IDictionary<string, object> dataC
         Log("已清空历史消息");
         
         // 重新初始化HttpClient
-        if (client != null)
-        {
-            client.Dispose();
-        }
-        client = new HttpClient();
+        InitializeHttpClient();
         Log("已重新初始化HttpClient");
         
         // 加载配置
@@ -154,7 +152,7 @@ public static void OnWindowCreated(Window win, IDictionary<string, object> dataC
         Log(string.Format("已设置HttpClient BaseAddress: {0}", BaseUrl));
         
         // 初始化数据
-        dataContext["MainPrompt"] = "有什么可以帮忙的？";
+        dataContext["MainPrompt"] = ""; // 移除"有什么可以帮忙的？"提示文字
         dataContext["InputText"] = "";
         dataContext["IsStreaming"] = IsStreaming;
         dataContext["Messages"] = Messages;
@@ -178,6 +176,9 @@ public static void OnWindowCreated(Window win, IDictionary<string, object> dataC
             }
         }
         
+        // 设置UI元素引用和事件处理
+        SetupUIElements(win, dataContext);
+        
         Log("窗口创建完成");
     }
     catch (Exception ex)
@@ -187,8 +188,278 @@ public static void OnWindowCreated(Window win, IDictionary<string, object> dataC
     }
 }
 
+// 初始化HttpClient
+private static void InitializeHttpClient()
+{
+    if (client != null)
+    {
+        client.Dispose();
+    }
+    
+    // 创建带超时设置的HttpClientHandler
+    var handler = new HttpClientHandler
+    {
+        // 如果有代理问题，可以添加以下配置
+        UseProxy = false,
+        // 如果有证书问题，可以添加以下配置
+        ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
+    };
+    
+    client = new HttpClient(handler);
+    
+    // 设置超时时间，避免长时间等待无响应的请求
+    client.Timeout = TimeSpan.FromSeconds(60);
+    
+    // 添加授权头
+    if (!string.IsNullOrEmpty(ApiKey))
+    {
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer " + ApiKey);
+        Log("已设置API密钥到授权头");
+    }
+    
+    // 设置基本URL
+    if (!string.IsNullOrEmpty(BaseUrl))
+    {
+        try
+        {
+            client.BaseAddress = new Uri(BaseUrl);
+            Log("已设置BaseAddress: " + BaseUrl);
+        }
+        catch (Exception ex)
+        {
+            Log("设置BaseAddress失败: " + ex.Message);
+        }
+    }
+}
+
+// 设置UI元素引用和事件处理
+private static void SetupUIElements(Window win, IDictionary<string, object> dataContext)
+{
+    try
+    {
+        // 获取UI元素的引用
+        Log("获取UI元素引用");
+        var messageContainer = (StackPanel)win.FindName("messageContainer");
+        var messageScrollViewer = (ScrollViewer)win.FindName("messageScrollViewer");
+        var txtInput = (TextBox)win.FindName("TxtInput");
+        var btnSend = (Button)win.FindName("BtnSend");
+        var btnSettings = (Button)win.FindName("BtnSettings");
+        var settingsPanel = (Border)win.FindName("SettingsPanel");
+        var btnCancelSettings = (Button)win.FindName("BtnCancelSettings");
+        var btnSaveSettings = (Button)win.FindName("BtnSaveSettings");
+        var txtModelName = (TextBox)win.FindName("TxtModelName");
+        var txtApiKey = (TextBox)win.FindName("TxtApiKey");
+        var txtBaseUrl = (TextBox)win.FindName("TxtBaseUrl");
+        var btnClose = (Button)win.FindName("BtnClose");
+        var btnMinimize = (Button)win.FindName("BtnMinimize");
+        var btnExpand = (Button)win.FindName("BtnExpand");
+        var titleBar = (Grid)win.FindName("TitleBar");
+
+        // 记录UI元素是否成功获取
+        Log("检查UI元素是否成功获取:");
+        Log("- messageContainer: " + (messageContainer != null ? "成功" : "失败"));
+        Log("- messageScrollViewer: " + (messageScrollViewer != null ? "成功" : "失败"));
+        Log("- txtInput: " + (txtInput != null ? "成功" : "失败"));
+        Log("- btnSend: " + (btnSend != null ? "成功" : "失败"));
+        
+        // 设置标题栏拖动
+        Log("设置标题栏拖动");
+        if (titleBar != null)
+        {
+            titleBar.MouseLeftButtonDown += (s, e) =>
+            {
+                // 确保只有在按下左键时才调用DragMove
+                if (e.ButtonState == MouseButtonState.Pressed && e.ChangedButton == MouseButton.Left) 
+                {
+                    try
+                    {
+                        win.DragMove();
+                    }
+                    catch (Exception ex)
+                    {
+                        Log("拖动窗口失败", ex);
+                    }
+                }
+            };
+        }
+
+        // 关闭按钮事件
+        Log("设置关闭按钮事件");
+        if (btnClose != null)
+        {
+            btnClose.Click += (s, e) =>
+            {
+                win.Close();
+            };
+        }
+
+        // 最小化按钮事件
+        Log("设置最小化按钮事件");
+        if (btnMinimize != null)
+        {
+            btnMinimize.Click += (s, e) =>
+            {
+                win.WindowState = WindowState.Minimized;
+            };
+        }
+
+        // 最大化/还原按钮事件
+        Log("设置最大化/还原按钮事件");
+        if (btnExpand != null)
+        {
+            btnExpand.Click += (s, e) =>
+            {
+                if (win.WindowState == WindowState.Maximized)
+                {
+                    win.WindowState = WindowState.Normal;
+                }
+                else
+                {
+                    win.WindowState = WindowState.Maximized;
+                }
+            };
+        }
+
+        // 设置按钮点击事件
+        Log("设置设置按钮点击事件");
+        if (btnSettings != null && settingsPanel != null)
+        {
+            btnSettings.Click += (s, e) =>
+            {
+                if (txtModelName != null) txtModelName.Text = ModelName;
+                if (txtApiKey != null) txtApiKey.Text = ApiKey;
+                if (txtBaseUrl != null) txtBaseUrl.Text = BaseUrl;
+                
+                settingsPanel.Visibility = Visibility.Visible;
+            };
+        }
+
+        // 设置面板取消按钮
+        Log("设置面板取消按钮事件");
+        if (btnCancelSettings != null && settingsPanel != null)
+        {
+            btnCancelSettings.Click += (s, e) =>
+            {
+                settingsPanel.Visibility = Visibility.Collapsed;
+            };
+        }
+
+        // 设置面板保存按钮
+        Log("设置面板保存按钮事件");
+        if (btnSaveSettings != null && settingsPanel != null && txtModelName != null && txtApiKey != null && txtBaseUrl != null)
+        {
+            btnSaveSettings.Click += (s, e) =>
+            {
+                ModelName = txtModelName.Text;
+                ApiKey = txtApiKey.Text;
+                BaseUrl = txtBaseUrl.Text;
+                
+                dataContext["ModelName"] = ModelName;
+                
+                // 重新创建HttpClient并设置授权头
+                InitializeHttpClient();
+                
+                settingsPanel.Visibility = Visibility.Collapsed;
+            };
+        }
+
+        // 发送按钮点击事件
+        Log("设置发送按钮点击事件");
+        if (btnSend != null && txtInput != null)
+        {
+            btnSend.Click += async (s, e) =>
+            {
+                Log("点击发送按钮");
+                await SendMessage(win, dataContext, messageContainer, messageScrollViewer, txtInput);
+            };
+        }
+
+        // 输入框按键事件
+        Log("设置输入框按键事件");
+        if (txtInput != null)
+        {
+            txtInput.PreviewKeyDown += async (s, e) =>
+            {
+                var eventSeqNumber = Interlocked.Increment(ref keyEventSequence);
+                Log("事件序号[" + eventSeqNumber + "] - 按键: " + e.Key + ", 按键状态: " + e.KeyStates);
+                
+                if (e.Key == Key.Return)
+                {
+                    if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift || (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+                    {
+                        // Shift+Enter 或 Ctrl+Enter 插入换行，不发送消息
+                        Log("事件序号[" + eventSeqNumber + "] - Shift+Enter或Ctrl+Enter，插入换行");
+                    }
+                    else
+                    {
+                        // 仅Enter键发送消息
+                        Log("事件序号[" + eventSeqNumber + "] - 准备通过回车发送消息");
+                        e.Handled = true; // 先标记为已处理，防止事件继续传播
+                        await SendMessage(win, dataContext, messageContainer, messageScrollViewer, txtInput);
+                        Log("事件序号[" + eventSeqNumber + "] - 回车发送消息完成");
+                    }
+                }
+            };
+
+            // 检查是否需要自动发送消息
+            if (dataContext.ContainsKey("AutoSendMessage") && Convert.ToBoolean(dataContext["AutoSendMessage"]) && 
+                dataContext.ContainsKey("PendingMessage") && dataContext["PendingMessage"] != null)
+            {
+                var pendingMessage = dataContext["PendingMessage"].ToString();
+                if (!string.IsNullOrEmpty(pendingMessage))
+                {
+                    Log("检测到待发送消息，准备自动发送: " + pendingMessage);
+                    
+                    // 临时设置消息到输入框并发送
+                    txtInput.Text = pendingMessage;
+                    dataContext["InputText"] = pendingMessage;
+                    
+                    // 使用Action代替立即执行异步代码，避免编译警告
+                    Application.Current.Dispatcher.BeginInvoke(new Action(() => 
+                    {
+                        // 这里使用无参数的SendMessage重载避免编译器警告
+                        SendMessageLater(win, dataContext, messageContainer, messageScrollViewer, txtInput);
+                    }));
+                }
+            }
+        }
+
+        // 优先让输入框获得焦点
+        Log("设置输入框焦点");
+        if (txtInput != null)
+        {
+            txtInput.Focus();
+            Log("输入框焦点设置状态: " + (txtInput.IsFocused ? "成功" : "失败"));
+        }
+        
+        // 记录初始化完成
+        Log("UI元素设置完成");
+    }
+    catch (Exception ex)
+    {
+        Log("设置UI元素失败", ex);
+        throw;
+    }
+}
+
+// 辅助方法，用于在UI线程上异步执行消息发送
+private static async void SendMessageLater(Window win, IDictionary<string, object> dataContext, StackPanel messageContainer, ScrollViewer messageScrollViewer, TextBox txtInput)
+{
+    try
+    {
+        await SendMessage(win, dataContext, messageContainer, messageScrollViewer, txtInput);
+        // 清除自动发送标记
+        dataContext["AutoSendMessage"] = false;
+        dataContext["PendingMessage"] = "";
+    }
+    catch (Exception ex)
+    {
+        Log("自动发送消息失败", ex);
+    }
+}
+
 // 窗口加载事件
-public static void OnWindowLoaded(Window win, IDictionary<string, object> dataContext, ICustomWindowContext winContext)
+public static async Task OnWindowLoaded(Window win, IDictionary<string, object> dataContext, ICustomWindowContext winContext)
 {
     Application.Current.DispatcherUnhandledException += (sender, e) =>
     {
@@ -223,7 +494,21 @@ public static void OnWindowLoaded(Window win, IDictionary<string, object> dataCo
         Log("成功获取所有UI元素");
 
         // 注册事件处理
-        titleBar.MouseLeftButtonDown += (s, e) => { if (e.ChangedButton == MouseButton.Left) win.DragMove(); };
+        titleBar.MouseLeftButtonDown += (s, e) => 
+        { 
+            // 确保只有在按下左键时才调用DragMove
+            if (e.ButtonState == MouseButtonState.Pressed && e.ChangedButton == MouseButton.Left) 
+            {
+                try
+                {
+                    win.DragMove();
+                }
+                catch (Exception ex)
+                {
+                    Log("拖动窗口失败", ex);
+                }
+            } 
+        };
         btnClose.Click += (s, e) => win.Close();
         btnMinimize.Click += (s, e) => win.WindowState = WindowState.Minimized;
         btnExpand.Click += (s, e) => win.WindowState = win.WindowState == WindowState.Normal ? WindowState.Maximized : WindowState.Normal;
@@ -274,13 +559,13 @@ public static void OnWindowLoaded(Window win, IDictionary<string, object> dataCo
             Log("设置已取消");
         };
         
-        btnSend.Click += (s, e) => 
+        btnSend.Click += async (s, e) => 
         {
             Log("点击发送按钮");
-            SendMessage(win, dataContext, txtInput, messageContainer, messageScrollViewer);
+            await SendMessage(win, dataContext, messageContainer, messageScrollViewer, txtInput);
         };
         
-        txtInput.KeyDown += (s, e) =>
+        txtInput.KeyDown += async (s, e) =>
         {
             Log("事件序号[1] - KeyDown: " + e.Key);
             
@@ -295,7 +580,7 @@ public static void OnWindowLoaded(Window win, IDictionary<string, object> dataCo
                 {
                     Log("事件序号[1] - 准备通过回车发送消息");
                     e.Handled = true; // 先标记为已处理，防止事件继续传播
-                    SendMessage(win, dataContext, txtInput, messageContainer, messageScrollViewer);
+                    await SendMessage(win, dataContext, messageContainer, messageScrollViewer, txtInput);
                     Log("事件序号[1] - 回车发送消息完成");
                 }
                 else
@@ -306,7 +591,7 @@ public static void OnWindowLoaded(Window win, IDictionary<string, object> dataCo
         };
         
         // 防止可能的TextBox默认行为干扰Enter键处理
-        txtInput.PreviewKeyDown += (s, e) =>
+        txtInput.PreviewKeyDown += async (s, e) =>
         {
             Log("事件序号[0] - PreviewKeyDown: " + e.Key);
             Log("事件序号[0] - 输入框文本: [" + txtInput.Text + "]");
@@ -346,7 +631,7 @@ public static void OnWindowLoaded(Window win, IDictionary<string, object> dataCo
                 e.Handled = true;
                 
                 // 直接在PreviewKeyDown中调用SendMessage
-                SendMessage(win, dataContext, txtInput, messageContainer, messageScrollViewer);
+                await SendMessage(win, dataContext, messageContainer, messageScrollViewer, txtInput);
                 Log("事件序号[0] - PreviewKeyDown中发送消息完成");
             }
         };
@@ -384,8 +669,8 @@ public static void OnWindowLoaded(Window win, IDictionary<string, object> dataCo
         {
             Log("检测到自动发送标记，准备自动发送消息...");
             
-            // 使用延迟确保UI已完全加载
-            Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => 
+            // 使用await替代BeginInvoke
+            await Application.Current.Dispatcher.InvokeAsync(async () => 
             {
                 try
                 {
@@ -394,7 +679,7 @@ public static void OnWindowLoaded(Window win, IDictionary<string, object> dataCo
                     
                     // 临时设置消息到输入框并发送
                     txtInput.Text = pendingMessage;
-                    SendMessage(win, dataContext, txtInput, messageContainer, messageScrollViewer);
+                    await SendMessage(win, dataContext, messageContainer, messageScrollViewer, txtInput);
                     
                     // 清空输入框和待发送消息
                     txtInput.Text = "";
@@ -407,7 +692,7 @@ public static void OnWindowLoaded(Window win, IDictionary<string, object> dataCo
                 {
                     Log("自动发送消息失败", ex);
                 }
-            }));
+            });
         }
     }
     catch (Exception ex)
@@ -493,76 +778,94 @@ public static void UpdateDebugInfo(Window win, string message)
     }
 }
 
-// 发送消息的方法
-public static async void SendMessage(Window win, IDictionary<string, object> dataContext, TextBox txtInput, StackPanel messageContainer, ScrollViewer messageScrollViewer)
+// 发送消息
+public static async Task SendMessage(Window win, IDictionary<string, object> dataContext, StackPanel messageContainer, ScrollViewer messageScrollViewer, TextBox txtInput)
 {
     try
     {
-        Log("SendMessage方法开始执行");
-        Log("输入框文本长度: " + (txtInput.Text != null ? txtInput.Text.Length : 0));
-        Log("输入框文本内容: [" + txtInput.Text + "]");
+        var message = dataContext["InputText"].ToString();
+        if (string.IsNullOrEmpty(message)) return;
         
-        // 检查DataContext中的输入文本
-        if (dataContext.ContainsKey("InputText"))
-        {
-            var contextText = dataContext["InputText"] as string;
-            Log("DataContext中的文本: [" + contextText + "]");
-            
-            // 如果DataContext中有文本但输入框为空，则同步
-            if (!string.IsNullOrEmpty(contextText) && string.IsNullOrEmpty(txtInput.Text))
-            {
-                Log("从DataContext同步文本到输入框");
-                txtInput.Text = contextText;
-            }
-        }
-
-        var userMessage = txtInput.Text.Trim();
-        Log("去除空格后的消息长度: " + userMessage.Length);
+        // 记录消息长度和内容 (截断长消息以避免日志过长)
+        var logMessage = message.Length > 50 ? message.Substring(0, 50) + "..." : message;
+        Log("发送消息: " + logMessage + ", 长度: " + message.Length);
         
-        if (string.IsNullOrEmpty(userMessage))
-        {
-            Log("消息为空，退出发送");
-            return;
-        }
-
-        Log("发送消息: " + userMessage);
-        txtInput.Text = string.Empty;
-
-        var messages = new List<Dictionary<string, object>>();
-        var userMessageDict = new Dictionary<string, object>();
-        userMessageDict.Add("role", "user");
-        userMessageDict.Add("content", userMessage);
-        userMessageDict.Add("timestamp", DateTime.Now);
-        messages.Add(userMessageDict);
-        Messages.Add(userMessageDict);
-
-        AddMessage(messageContainer, userMessage, true);
-        ScrollToBottom(messageScrollViewer);
-        
-        // 重新让输入框获得焦点
+        // 清空输入框并使其获得焦点
+        dataContext["InputText"] = "";
         txtInput.Focus();
-        Log("发送后重新设置输入框焦点: " + (txtInput.IsFocused ? "成功" : "失败"));
-
+        
+        // 将用户消息添加到消息历史
+        var messageDict = new Dictionary<string, object>();
+        messageDict.Add("role", "user");
+        messageDict.Add("content", message);
+        messageDict.Add("timestamp", DateTime.Now);
+        Messages.Add(messageDict);
+        
+        // 显示用户消息到界面
+        AddMessage(messageContainer, message, true);
+        
+        // 立即滚动到底部
+        await ScrollToBottom(messageScrollViewer);
+        
         try
         {
+            // 获取AI响应
             await GetAIResponse(win, dataContext, messageContainer, messageScrollViewer);
         }
-        catch (Exception ex)
+        catch (Exception apiEx)
         {
-            Log("获取AI响应失败", ex);
-            MessageBox.Show("获取AI响应时发生错误，请查看日志了解详情。", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            // GetAIResponse方法内部已经处理异常并显示给用户，这里不需要再显示
+            Log("API响应处理被捕获", apiEx);
         }
     }
     catch (Exception ex)
     {
         Log("发送消息失败", ex);
-        MessageBox.Show("发送消息时发生错误，请查看日志了解详情。", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        
+        try
+        {
+            // 显示错误消息 - 使用同步方式
+            var uiTask = Application.Current.Dispatcher.InvokeAsync(() => {
+                MessageBox.Show(win, "发送消息失败: " + ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }, DispatcherPriority.Send);
+            
+            // 等待UI操作完成
+            uiTask.Wait();
+        }
+        catch
+        {
+            // 忽略显示错误的异常
+        }
     }
 }
 
 // 调用AI API获取回复
 public static async Task GetAIResponse(Window win, IDictionary<string, object> dataContext, StackPanel messageContainer, ScrollViewer messageScrollViewer)
 {
+    // 创建一个消息面板用于显示AI响应
+    var aiMessagePanel = new Border
+    {
+        Background = new SolidColorBrush(Color.FromRgb(45, 45, 45)),
+        BorderBrush = new SolidColorBrush(Color.FromRgb(64, 64, 64)),
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(5),
+        Margin = new Thickness(5, 8, 5, 8), // 增加上下间距
+        Padding = new Thickness(12), // 增加内部边距
+        HorizontalAlignment = HorizontalAlignment.Left,
+        MaxWidth = 470 // 调整最大宽度，留出边距
+    };
+    var aiRichTextBox = new RichTextBox
+    {
+        Background = null,
+        BorderThickness = new Thickness(0),
+        IsReadOnly = true,
+        Foreground = new SolidColorBrush(Colors.White),
+        FontSize = 14, // 增大字体
+        Document = new FlowDocument()
+    };
+    aiMessagePanel.Child = aiRichTextBox;
+    messageContainer.Children.Add(aiMessagePanel);
+
     try
     {
         // 创建消息数组
@@ -587,81 +890,184 @@ public static async Task GetAIResponse(Window win, IDictionary<string, object> d
 
         var content = new StringContent(json, Encoding.UTF8, "application/json");
         
-        // 创建一个消息面板用于显示AI响应
-        var aiMessagePanel = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(45, 45, 45)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(64, 64, 64)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(5),
-            Margin = new Thickness(5),
-            Padding = new Thickness(10),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            MaxWidth = 500
-        };
-        var aiRichTextBox = new RichTextBox
-        {
-            Background = null,
-            BorderThickness = new Thickness(0),
-            IsReadOnly = true,
-            Foreground = new SolidColorBrush(Colors.White),
-            Document = new FlowDocument()
-        };
-        aiMessagePanel.Child = aiRichTextBox;
-        messageContainer.Children.Add(aiMessagePanel);
+        // 设置超时时间
+        var timeoutCts = new CancellationTokenSource();
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(60)); // 设置60秒超时
         
-        if (IsStreaming)
+        try
         {
-            CurrentStreamContent.Clear();
-            
-            // 流式响应处理
-            using (var response = await client.PostAsync("/v1/chat/completions", content))
+            if (IsStreaming)
             {
+                CurrentStreamContent.Clear();
+                
+                // 流式响应处理
+                var response = await client.PostAsync("/v1/chat/completions", content, timeoutCts.Token);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorMessage = await response.Content.ReadAsStringAsync();
+                    Log("API响应错误: " + response.StatusCode + " - " + errorMessage);
+                    
+                    // 显示错误信息
+                    await Application.Current.Dispatcher.InvokeAsync(() => {
+                        aiRichTextBox.Document.Blocks.Clear();
+                        var paragraph = new Paragraph();
+                        paragraph.LineHeight = 1.2; // 设置行间距
+                        var run = new Run(string.Format("请求失败: {0} - {1}", response.StatusCode, (string.IsNullOrEmpty(errorMessage) ? "无错误详情" : errorMessage)));
+                        run.Foreground = Brushes.White;
+                        paragraph.Inlines.Add(run);
+                        aiRichTextBox.Document.Blocks.Add(paragraph);
+                        
+                        // 添加到消息历史
+                        var messageDict = new Dictionary<string, object>();
+                        messageDict.Add("role", "assistant");
+                        messageDict.Add("content", string.Format("请求失败: {0}", response.StatusCode));
+                        messageDict.Add("timestamp", DateTime.Now);
+                        Messages.Add(messageDict);
+                        
+                        messageScrollViewer.ScrollToBottom();
+                    });
+                    
+                    return;
+                }
+                
+                await HandleStreamResponse(response, aiRichTextBox, messageScrollViewer);
+            }
+            else
+            {
+                // 非流式响应处理
+                var response = await client.PostAsync("/v1/chat/completions", content, timeoutCts.Token);
+                
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorMessage = await response.Content.ReadAsStringAsync();
                     Log("API响应错误: " + response.StatusCode + " - " + errorMessage);
                     throw new Exception("API请求失败: " + response.StatusCode);
                 }
-                
-                Log("开始处理流式响应...");
-                await HandleStreamResponse(response, aiRichTextBox, messageScrollViewer);
+
+                var responseContent = await response.Content.ReadAsStringAsync();
+                Log("API响应: " + responseContent);
+
+                var result = JsonConvert.DeserializeObject<Dictionary<string, object>>(responseContent);
+                var choices = (JArray)result["choices"];
+                var aiMessage = choices[0]["message"]["content"].ToString();
+
+                var messageDict = new Dictionary<string, object>();
+                messageDict.Add("role", "assistant");
+                messageDict.Add("content", aiMessage);
+                messageDict.Add("timestamp", DateTime.Now);
+                Messages.Add(messageDict);
+
+                // 显示完整消息
+                aiRichTextBox.Document = FormatMessageDocument(aiMessage);
+                await ScrollToBottom(messageScrollViewer);
             }
         }
-        else
+        catch (TaskCanceledException tcEx)
         {
-            // 非流式响应处理
-            var response = await client.PostAsync("/v1/chat/completions", content);
+            Log("API请求超时或被取消", tcEx);
             
-            if (!response.IsSuccessStatusCode)
+            // 显示超时错误信息
+            try
             {
-                var errorMessage = await response.Content.ReadAsStringAsync();
-                Log("API响应错误: " + response.StatusCode + " - " + errorMessage);
-                throw new Exception("API请求失败: " + response.StatusCode);
+                // 在catch块中不能使用await，使用同步方法更新UI
+                var uiTask = Application.Current.Dispatcher.InvokeAsync(() => {
+                    aiRichTextBox.Document.Blocks.Clear();
+                    var paragraph = new Paragraph();
+                    paragraph.LineHeight = 1.2;
+                    var run = new Run("请求超时或被取消，请检查网络连接后重试。");
+                    run.Foreground = Brushes.White;
+                    paragraph.Inlines.Add(run);
+                    aiRichTextBox.Document.Blocks.Add(paragraph);
+                    
+                    // 添加到消息历史
+                    var messageDict = new Dictionary<string, object>();
+                    messageDict.Add("role", "assistant");
+                    messageDict.Add("content", "请求超时或被取消，请检查网络连接后重试。");
+                    messageDict.Add("timestamp", DateTime.Now);
+                    Messages.Add(messageDict);
+                    
+                    messageScrollViewer.ScrollToBottom();
+                }, DispatcherPriority.Send);
+                
+                // 确保UI更新完成
+                uiTask.Wait();
             }
-
-            var responseContent = await response.Content.ReadAsStringAsync();
-            Log("API响应: " + responseContent);
-
-            var result = JsonConvert.DeserializeObject<Dictionary<string, object>>(responseContent);
-            var choices = (JArray)result["choices"];
-            var aiMessage = choices[0]["message"]["content"].ToString();
-
-            var messageDict = new Dictionary<string, object>();
-            messageDict.Add("role", "assistant");
-            messageDict.Add("content", aiMessage);
-            messageDict.Add("timestamp", DateTime.Now);
-            Messages.Add(messageDict);
-
-            // 显示完整消息
-            aiRichTextBox.Document = FormatMessageDocument(aiMessage);
-            ScrollToBottom(messageScrollViewer);
+            catch (Exception innerEx)
+            {
+                Log("显示超时错误信息时发生异常", innerEx);
+            }
+        }
+        catch (HttpRequestException httpEx)
+        {
+            Log("HTTP请求异常", httpEx);
+            
+            // 显示HTTP异常信息
+            try
+            {
+                // 在catch块中不能使用await，使用同步方法更新UI
+                var uiTask = Application.Current.Dispatcher.InvokeAsync(() => {
+                    aiRichTextBox.Document.Blocks.Clear();
+                    var paragraph = new Paragraph();
+                    paragraph.LineHeight = 1.2;
+                    var run = new Run(string.Format("HTTP请求失败: {0}", httpEx.Message));
+                    run.Foreground = Brushes.White;
+                    paragraph.Inlines.Add(run);
+                    aiRichTextBox.Document.Blocks.Add(paragraph);
+                    
+                    // 添加到消息历史
+                    var messageDict = new Dictionary<string, object>();
+                    messageDict.Add("role", "assistant");
+                    messageDict.Add("content", string.Format("HTTP请求失败: {0}", httpEx.Message));
+                    messageDict.Add("timestamp", DateTime.Now);
+                    Messages.Add(messageDict);
+                    
+                    messageScrollViewer.ScrollToBottom();
+                }, DispatcherPriority.Send);
+                
+                // 确保UI更新完成
+                uiTask.Wait();
+            }
+            catch (Exception innerEx)
+            {
+                Log("显示HTTP错误信息时发生异常", innerEx);
+            }
         }
     }
     catch (Exception ex)
     {
         Log("处理AI响应失败", ex);
-        throw;
+        
+        // 显示通用异常信息
+        try
+        {
+            // 在catch块中不能使用await，使用同步方法更新UI
+            var uiTask = Application.Current.Dispatcher.InvokeAsync(() => {
+                aiRichTextBox.Document.Blocks.Clear();
+                var paragraph = new Paragraph();
+                paragraph.LineHeight = 1.2;
+                var run = new Run(string.Format("处理响应时出错: {0}", ex.Message));
+                run.Foreground = Brushes.White;
+                paragraph.Inlines.Add(run);
+                aiRichTextBox.Document.Blocks.Add(paragraph);
+                
+                // 添加到消息历史
+                var messageDict = new Dictionary<string, object>();
+                messageDict.Add("role", "assistant");
+                messageDict.Add("content", string.Format("处理响应时出错: {0}", ex.Message));
+                messageDict.Add("timestamp", DateTime.Now);
+                Messages.Add(messageDict);
+                
+                messageScrollViewer.ScrollToBottom();
+            }, DispatcherPriority.Send);
+            
+            // 确保UI更新完成
+            uiTask.Wait();
+        }
+        catch (Exception innerEx)
+        {
+            Log("显示通用错误信息时发生异常", innerEx);
+        }
     }
 }
 
@@ -670,15 +1076,19 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
     try
     {
         // 设置RichTextBox
-        Application.Current.Dispatcher.Invoke(() =>
+        await Application.Current.Dispatcher.InvokeAsync(() =>
         {
             try
             {
                 // 创建初始UI，指示用户开始接收响应
                 messageBox.Document.Blocks.Clear();
+                messageBox.FontSize = 14; // 增大字体
+                
                 var paragraph = new Paragraph();
+                paragraph.LineHeight = 1.2; // 设置行间距
+                
                 var run = new Run("开始接收响应...");
-                run.Foreground = Brushes.Green;
+                run.Foreground = Brushes.White; // 使用白色文本，保持一致性
                 paragraph.Inlines.Add(run);
                 messageBox.Document.Blocks.Add(paragraph);
                 
@@ -691,7 +1101,7 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
             {
                 Log("设置初始UI失败", ex);
             }
-        });
+        }, DispatcherPriority.Send);
         
         Log("开始接收流式响应内容...");
         
@@ -781,19 +1191,18 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
                                         // 创建要显示的内容拷贝，避免多线程访问问题
                                         string contentToDisplay = currentMessage.ToString();
                                         
-                                        // 使用新的线程安全方式更新UI
-                                        Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                                        // 使用Invoke代替BeginInvoke确保UI更新已完成
+                                        await Application.Current.Dispatcher.InvokeAsync(() =>
                                         {
                                             try
                                             {
                                                 // 更新界面
                                                 messageBox.Document.Blocks.Clear();
-                                                messageBox.FontSize = 14; // 增大字体
                                                 var paragraph = new Paragraph();
                                                 paragraph.LineHeight = 1.2; // 设置行间距
                                                 
                                                 var run = new Run(contentToDisplay);
-                                                run.Foreground = Brushes.White;  // 使用白色文本
+                                                run.Foreground = Brushes.White;  // 使用白色文本，保持一致性
                                                 paragraph.Inlines.Add(run);
                                                 messageBox.Document.Blocks.Add(paragraph);
                                                 
@@ -817,10 +1226,9 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
                                                     DateTime.Now.ToString("HH:mm:ss.fff"), 
                                                     ex.Message));
                                             }
-                                        }), DispatcherPriority.Send);
+                                        }, DispatcherPriority.Send);
                                         
-                                        // 给UI线程一些时间来处理更新
-                                        await Task.Delay(5);
+                                        // 无需额外的Task.Delay，InvokeAsync已经确保UI更新完成
                                     }
                                 }
                             }
@@ -843,7 +1251,7 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
             
             // 确保显示完整内容
             string finalContent = currentMessage.ToString();
-            Application.Current.Dispatcher.Invoke(() =>
+            await Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 try
                 {
@@ -853,7 +1261,10 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
                         var document = messageBox.Document;
                         document.Blocks.Clear();
                         var paragraph = new Paragraph();
-                        paragraph.Inlines.Add(new Run("服务器返回了空响应，请重试或检查网络连接。"));
+                        paragraph.LineHeight = 1.2; // 设置行间距
+                        var run = new Run("服务器返回了空响应，请重试或检查网络连接。");
+                        run.Foreground = Brushes.White; // 使用白色文本
+                        paragraph.Inlines.Add(run);
                         document.Blocks.Add(paragraph);
                         
                         // 将错误消息添加到消息历史中
@@ -870,7 +1281,10 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
                         var document = messageBox.Document;
                         document.Blocks.Clear();
                         var paragraph = new Paragraph();
-                        paragraph.Inlines.Add(new Run(finalContent));
+                        paragraph.LineHeight = 1.2; // 设置行间距
+                        var run = new Run(finalContent);
+                        run.Foreground = Brushes.White; // 使用白色文本
+                        paragraph.Inlines.Add(run);
                         document.Blocks.Add(paragraph);
                         
                         // 将AI回复添加到消息历史中
@@ -889,22 +1303,25 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
                 {
                     Log("最终UI更新失败", ex);
                 }
-            });
+            }, DispatcherPriority.Send);
         }
     }
     catch (Exception ex)
     {
         Log("处理流式响应时发生错误", ex);
         
-        // 显示错误信息到UI
-        Application.Current.Dispatcher.Invoke(() =>
+        // 在catch块中不能使用await，所以我们使用同步方法更新UI
+        var uiTask = Application.Current.Dispatcher.InvokeAsync(() =>
         {
             try
             {
                 var document = messageBox.Document;
                 document.Blocks.Clear();
                 var paragraph = new Paragraph();
-                paragraph.Inlines.Add(new Run("处理响应时出错: " + ex.Message));
+                paragraph.LineHeight = 1.2; // 设置行间距
+                var run = new Run("处理响应时出错: " + ex.Message);
+                run.Foreground = Brushes.White; // 使用白色文本
+                paragraph.Inlines.Add(run);
                 document.Blocks.Add(paragraph);
                 
                 // 将错误消息添加到消息历史中
@@ -917,11 +1334,14 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
                 scrollViewer.ScrollToBottom();
                 Log("已显示错误信息到UI");
             }
-            catch
+            catch (Exception displayEx)
             {
-                Log("无法显示错误信息到UI");
+                Log("无法显示错误信息到UI: " + displayEx.Message);
             }
-        });
+        }, DispatcherPriority.Send);
+        
+        // 在抛出异常前确保UI更新已完成
+        uiTask.Wait();
         
         throw;
     }
@@ -932,16 +1352,26 @@ public static void AddMessage(StackPanel container, string message, bool isUser)
 {
     try
     {
+        // 确保容器不为空
+        if (container == null)
+        {
+            Log("错误：消息容器为空");
+            return;
+        }
+
+        // 记录添加消息
+        Log("添加" + (isUser ? "用户" : "AI") + "消息: " + message);
+
         var panel = new Border
         {
             Background = new SolidColorBrush(isUser ? Color.FromRgb(43, 91, 76) : Color.FromRgb(45, 45, 45)),
             BorderBrush = new SolidColorBrush(isUser ? Color.FromRgb(51, 102, 153) : Color.FromRgb(64, 64, 64)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(5),
-            Margin = new Thickness(5),
-            Padding = new Thickness(10),
+            Margin = new Thickness(5, 8, 5, 8), // 增加上下间距
+            Padding = new Thickness(12), // 增加内部边距
             HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-            MaxWidth = 500
+            MaxWidth = 470 // 调整最大宽度，留出边距
         };
 
         var richTextBox = new RichTextBox
@@ -950,8 +1380,12 @@ public static void AddMessage(StackPanel container, string message, bool isUser)
             BorderThickness = new Thickness(0),
             IsReadOnly = true,
             Foreground = new SolidColorBrush(Colors.White),
-            HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
+            HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+            FontSize = 14 // 增大字体
         };
+
+        // 设置行间距
+        richTextBox.Document.LineHeight = 1.2;
 
         var doc = new FlowDocument();
         
@@ -965,6 +1399,7 @@ public static void AddMessage(StackPanel container, string message, bool isUser)
                     if (!string.IsNullOrEmpty(parts[i]))
                     {
                         var para = new Paragraph(new Run(parts[i].Trim()));
+                        para.LineHeight = 1.2; // 设置段落行间距
                         doc.Blocks.Add(para);
                     }
                 }
@@ -992,7 +1427,8 @@ public static void AddMessage(StackPanel container, string message, bool isUser)
                     {
                         Background = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
                         FontFamily = new FontFamily("Consolas"),
-                        Margin = new Thickness(0, 5, 0, 5)
+                        Margin = new Thickness(0, 5, 0, 5),
+                        LineHeight = 1.2 // 设置代码块行间距
                     };
                     doc.Blocks.Add(codePara);
                 }
@@ -1000,14 +1436,16 @@ public static void AddMessage(StackPanel container, string message, bool isUser)
         }
         else
         {
-            doc.Blocks.Add(new Paragraph(new Run(message)));
+            var para = new Paragraph(new Run(message));
+            para.LineHeight = 1.2; // 设置段落行间距
+            doc.Blocks.Add(para);
         }
 
         richTextBox.Document = doc;
         panel.Child = richTextBox;
         container.Children.Add(panel);
 
-        Log("添加" + (isUser ? "用户" : "AI") + "消息到界面");
+        Log("成功添加" + (isUser ? "用户" : "AI") + "消息到界面");
     }
     catch (Exception ex)
     {
@@ -1027,6 +1465,8 @@ public static string GetShortModelName(string fullName)
 public static FlowDocument FormatMessageDocument(string message)
 {
     var doc = new FlowDocument();
+    doc.FontSize = 14; // 增大字体
+    doc.LineHeight = 1.2; // 设置文档行间距
     
     if (message.Contains("```"))
     {
@@ -1038,6 +1478,7 @@ public static FlowDocument FormatMessageDocument(string message)
                 if (!string.IsNullOrEmpty(parts[i]))
                 {
                     var para = new Paragraph(new Run(parts[i].Trim()));
+                    para.LineHeight = 1.2; // 设置段落行间距
                     doc.Blocks.Add(para);
                 }
             }
@@ -1065,7 +1506,8 @@ public static FlowDocument FormatMessageDocument(string message)
                 {
                     Background = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
                     FontFamily = new FontFamily("Consolas"),
-                    Margin = new Thickness(0, 5, 0, 5)
+                    Margin = new Thickness(0, 5, 0, 5),
+                    LineHeight = 1.2 // 设置代码块行间距
                 };
                 doc.Blocks.Add(codePara);
             }
@@ -1073,22 +1515,25 @@ public static FlowDocument FormatMessageDocument(string message)
     }
     else
     {
-        doc.Blocks.Add(new Paragraph(new Run(message)));
+        var para = new Paragraph(new Run(message));
+        para.LineHeight = 1.2; // 设置段落行间距
+        doc.Blocks.Add(para);
     }
     
     return doc;
 }
 
 // 滚动到底部的工具方法
-public static void ScrollToBottom(ScrollViewer scrollViewer)
+public static async Task ScrollToBottom(ScrollViewer scrollViewer)
 {
     try
     {
         scrollViewer.ScrollToVerticalOffset(double.MaxValue);
         
         // 尝试第二种方法确保滚动到底部
-        Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Background, 
-            new Action(() => scrollViewer.ScrollToEnd()));
+        await Application.Current.Dispatcher.InvokeAsync(
+            () => scrollViewer.ScrollToEnd(), 
+            DispatcherPriority.Background);
         
         Log("执行滚动到底部");
     }
