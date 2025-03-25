@@ -154,7 +154,7 @@ public static void OnWindowCreated(Window win, IDictionary<string, object> dataC
         Log(string.Format("已设置HttpClient BaseAddress: {0}", BaseUrl));
         
         // 初始化数据
-        dataContext["MainPrompt"] = "有什么可以帮忙的？";
+        dataContext["MainPrompt"] = "";
         dataContext["InputText"] = "";
         dataContext["IsStreaming"] = IsStreaming;
         dataContext["Messages"] = Messages;
@@ -494,7 +494,7 @@ public static void UpdateDebugInfo(Window win, string message)
 }
 
 // 发送消息的方法
-public static async void SendMessage(Window win, IDictionary<string, object> dataContext, TextBox txtInput, StackPanel messageContainer, ScrollViewer messageScrollViewer)
+public static async Task SendMessage(Window win, IDictionary<string, object> dataContext, TextBox txtInput, StackPanel messageContainer, ScrollViewer messageScrollViewer)
 {
     try
     {
@@ -556,7 +556,7 @@ public static async void SendMessage(Window win, IDictionary<string, object> dat
     catch (Exception ex)
     {
         Log("发送消息失败", ex);
-        MessageBox.Show("发送消息时发生错误，请查看日志了解详情。", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        MessageBox.Show("发送消息时发生错误，请查看日志文件了解详情。", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
     }
 }
 
@@ -605,7 +605,8 @@ public static async Task GetAIResponse(Window win, IDictionary<string, object> d
             BorderThickness = new Thickness(0),
             IsReadOnly = true,
             Foreground = new SolidColorBrush(Colors.White),
-            Document = new FlowDocument()
+            HorizontalAlignment = HorizontalAlignment.Left,
+            FontSize = 14
         };
         aiMessagePanel.Child = aiRichTextBox;
         messageContainer.Children.Add(aiMessagePanel);
@@ -788,9 +789,8 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
                                             {
                                                 // 更新界面
                                                 messageBox.Document.Blocks.Clear();
-                                                messageBox.FontSize = 14; // 增大字体
+                                                messageBox.FontSize = 14;
                                                 var paragraph = new Paragraph();
-                                                paragraph.LineHeight = 1.2; // 设置行间距
                                                 
                                                 var run = new Run(contentToDisplay);
                                                 run.Foreground = Brushes.White;  // 使用白色文本
@@ -803,13 +803,6 @@ private static async Task HandleStreamResponse(HttpResponseMessage response, Ric
                                                 
                                                 // 确保滚动到底部
                                                 scrollViewer.ScrollToEnd();
-                                                
-                                                if (currentMessage.Length <= 50 || currentMessage.Length % 200 == 0)
-                                                {
-                                                    Log(string.Format("UI异步更新 [{0}], 显示内容长度: {1}", 
-                                                        DateTime.Now.ToString("HH:mm:ss.fff"),
-                                                        contentToDisplay.Length));
-                                                }
                                             }
                                             catch (Exception ex)
                                             {
@@ -951,12 +944,11 @@ public static void AddMessage(StackPanel container, string message, bool isUser)
             IsReadOnly = true,
             Foreground = new SolidColorBrush(Colors.White),
             HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-            FontSize = 14  // 增大字体大小
+            FontSize = 14
         };
 
         var doc = new FlowDocument();
-        doc.LineHeight = 1.5;  // 设置1.5倍行间距
-        
+
         if (message.Contains("```"))
         {
             var parts = message.Split(new[] { "```" }, StringSplitOptions.None);
@@ -966,8 +958,7 @@ public static void AddMessage(StackPanel container, string message, bool isUser)
                 {
                     if (!string.IsNullOrEmpty(parts[i]))
                     {
-                        var para = new Paragraph(new Run(parts[i].Trim()));
-                        doc.Blocks.Add(para);
+                        doc.Blocks.Add(new Paragraph(new Run(parts[i].Trim())));
                     }
                 }
                 else
@@ -1008,7 +999,7 @@ public static void AddMessage(StackPanel container, string message, bool isUser)
         richTextBox.Document = doc;
         panel.Child = richTextBox;
         container.Children.Add(panel);
-
+        
         Log("添加" + (isUser ? "用户" : "AI") + "消息到界面");
     }
     catch (Exception ex)
@@ -1039,8 +1030,7 @@ public static FlowDocument FormatMessageDocument(string message)
             {
                 if (!string.IsNullOrEmpty(parts[i]))
                 {
-                    var para = new Paragraph(new Run(parts[i].Trim()));
-                    doc.Blocks.Add(para);
+                    doc.Blocks.Add(new Paragraph(new Run(parts[i].Trim())));
                 }
             }
             else

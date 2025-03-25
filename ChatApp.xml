@@ -183,7 +183,6 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="40"/>
-                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -210,23 +209,19 @@
                 </StackPanel>
             </Grid>
             
-            <!-- 主标题 -->
-            <TextBlock Grid.Row="1" Text="{Binding [MainPrompt]}" Foreground="White" FontSize="24" 
-                       HorizontalAlignment="Center" Margin="0,30,0,20"/>
-            
             <!-- 聊天消息区域 -->
-            <ScrollViewer Grid.Row="2" Name="MessageScrollViewer" VerticalScrollBarVisibility="Auto" Margin="20,0,20,10">
+            <ScrollViewer Grid.Row="1" Name="MessageScrollViewer" VerticalScrollBarVisibility="Auto" Margin="20,0,20,10">
                 <StackPanel Name="MessageContainer">
                     <!-- 消息内容会在C#代码中动态添加 -->
                 </StackPanel>
             </ScrollViewer>
             
             <!-- 调试信息区域 -->
-            <TextBlock Grid.Row="3" Name="TxtDebugInfo" Foreground="#888888" FontSize="10" 
+            <TextBlock Grid.Row="2" Name="TxtDebugInfo" Foreground="#888888" FontSize="10" 
                        Margin="20,0,20,5" TextWrapping="Wrap" Height="30"/>
             
             <!-- 底部输入区域 -->
-            <Grid Grid.Row="4" Background="#2A2A2A" Margin="0">
+            <Grid Grid.Row="3" Background="#2A2A2A" Margin="0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
@@ -253,7 +248,7 @@
             </Grid>
             
             <!-- 设置面板（初始隐藏） -->
-            <Border Grid.RowSpan="5" Name="SettingsPanel" Background="#222222" BorderBrush="#333333" 
+            <Border Grid.RowSpan="4" Name="SettingsPanel" Background="#222222" BorderBrush="#333333" 
                    BorderThickness="1" CornerRadius="8" Visibility="Collapsed">
                 <Grid Margin="20">
                     <Grid.RowDefinitions>
