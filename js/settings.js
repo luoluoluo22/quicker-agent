@@ -356,17 +356,40 @@ class SettingsManager {
                 quickerActions: quickerActions
             }
 
-            // 保存设置
+            // 调用子程序保存设置
+            return await this.saveAIChatSettings(settingsToSave);
+        } catch (error) {
+            console.error('Error saving settings:', error)
+            return false
+        }
+    }
+
+    // 保存AI聊天设置子程序
+    async saveAIChatSettings(settingsToSave) {
+        console.log('SettingsManager: 调用子程序saveAIChatSettings保存设置');
+        try {
+            // 检查$quicker对象是否可用
             const v = typeof $quicker !== 'undefined' ? $quicker : null
             if (v) {
-                await v.setVar('chatSettings', JSON.stringify(settingsToSave))
-                return true
+                // 使用$quickerSp调用子程序
+                const result = await $quickerSp('saveAIChatSettings', {
+                    settingsToSave: JSON.stringify(settingsToSave)
+                });
+                
+                // 检查子程序调用结果
+                if (result && result.success) {
+                    console.log('SettingsManager: 设置保存成功');
+                    return true;
+                } else {
+                    console.warn('SettingsManager: 子程序调用失败', result);
+                    return false;
+                }
             } else {
-                console.warn('$quicker object not available. Cannot save settings.')
+                console.warn('$quicker对象不可用，无法保存设置。')
                 return false
             }
         } catch (error) {
-            console.error('Error saving settings:', error)
+            console.error('SettingsManager: 保存设置时出错:', error)
             return false
         }
     }
