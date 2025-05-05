@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 聊天助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/highlight.js@11.8.0/styles/github.min.css"
+    />
+    <link rel="stylesheet" href="https://quicker-agent/css/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.8.0/highlight.min.js"></script>
+    <script type="module" src="https://quicker-agent/js/main.js"></script>
+  </head>
+  <body class="bg-gray-100 h-screen flex flex-col">
+    <main class="flex-1 flex flex-col max-w-5xl mx-auto w-full">
+      <!-- Settings Bar -->
+      <div class="bg-white shadow-sm">
+        <div class="max-w-5xl mx-auto px-4 py-2">
+          <button
+            id="settings-toggle"
+            class="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
+          >
+            <i class="fas fa-cog"></i>
+            <span>设置</span>
+            <i
+              class="fas fa-chevron-down transform transition-transform duration-200"
+            ></i>
+          </button>
+
+          <div
+            id="settings-panel"
+            class="max-h-0 overflow-hidden transition-all duration-300"
+          >
+            <div class="py-4 space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700"
+                  >API 密钥</label
+                >
+                <input
+                  type="password"
+                  id="api-key"
+                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700"
+                  >API 地址</label
+                >
+                <input
+                  type="text"
+                  id="base-url"
+                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="https://api.openai.com/v1/chat/completions"
+                />
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700"
+                  >模型</label
+                >
+                <input
+                  type="text"
+                  id="model-input"
+                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="gpt-3.5-turbo"
+                />
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700">
+                  随机性: <span id="temp-value">0.7</span>
+                </label>
+                <input
+                  type="range"
+                  id="temperature"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value="0.7"
+                  class="mt-1 block w-full"
+                />
+              </div>
+
+              <!-- 系统提示词设置 -->
+              <div>
+                <div class="flex justify-between items-center">
+                  <label class="block text-sm font-medium text-gray-700"
+                    >系统提示词</label
+                  >
+                  <button
+                    id="add-prompt"
+                    class="px-2 py-1 text-sm font-medium text-white bg-gray-800 rounded-md hover:bg-gray-700"
+                  >
+                    <i class="fas fa-plus"></i> 添加
+                  </button>
+                </div>
+                 <!-- Area to display default agent prompt -->
+                 <div class="mt-2">
+                     <label class="block text-xs font-medium text-gray-500 mb-1">内置 Agent 指令 (始终展示):</label>
+                     <pre id="default-agent-prompt-display"></pre> <!-- Use pre for better formatting -->
+                 </div>
+                 <!-- End Area -->
+                <div id="system-prompts" class="mt-2 space-y-2">
+                  <!-- 提示词条目将在这里动态添加 -->
+                </div>
+              </div>
+
+              <div class="flex justify-end space-x-2">
+                <button
+                  id="cancel-settings"
+                  class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                >
+                  取消
+                </button>
+                <button
+                  id="save-settings"
+                  class="px-4 py-2 text-sm font-medium text-white bg-gray-800 rounded-md hover:bg-gray-700"
+                >
+                  保存设置
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Context Button & Preview Area -->
+      <div class="bg-white shadow-sm mt-2 mx-4 p-4 rounded-xl">
+        <div
+          id="context-button-area"
+          class="context-button-flex rounded-xl border border-transparent"
+        >
+          <div class="context-button-info">
+            <img
+              id="context-icon"
+              class="context-icon hidden"
+              src=""
+              alt="Window Icon"
+            />
+            <i
+              id="context-default-icon"
+              class="fas fa-link mr-2 text-gray-500"
+            ></i>
+            <span id="context-title" class="context-text truncate"
+              >未关联窗口</span
+            >
+          </div>
+          <div class="context-status-area">
+            <span id="context-status" class="text-xs text-gray-400 mr-2"
+              >未激活</span
+            >
+            <button
+              id="edit-context-button"
+              class="text-gray-500 hover:text-gray-700 context-edit-button"
+              title="编辑关联窗口内容"
+            >
+              <i class="fas fa-edit"></i>
+            </button>
+          </div>
+        </div>
+        <img
+          id="context-screenshot-preview"
+          src=""
+          alt="Window Screenshot Preview"
+        />
+      </div>
+      <!-- End Context Button -->
+
+      <!-- Chat Messages -->
+      <div
+        id="chat-container"
+        class="flex-1 overflow-y-auto px-4 py-2 space-y-4"
+      >
+        <!-- Welcome message -->
+        <div class="message-animation max-w-3xl mx-auto">
+          <div class="bg-white p-5 rounded-2xl shadow-sm">
+            <div class="flex items-start space-x-3">
+              <div
+                class="flex-shrink-0 w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center"
+              >
+                <i class="fas fa-robot text-gray-500"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm text-gray-500 mb-1">AI 助手</p>
+                <p class="text-gray-700">
+                  你好！我是你的 AI 助手。有什么我可以帮你的吗？
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Input Area -->
+      <div class="p-4 pt-2">
+        <!-- Tool Toggles -->
+        <div class="flex justify-end space-x-2 mb-2">
+            <button id="toggle-run-action-button" class="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400" title="切换动作执行功能 (右键编辑)">
+              <i class="fas fa-bolt mr-1"></i> 动作执行: <span id="run-action-status">关闭</span>
+            </button>
+           <button id="toggle-run-command-button" class="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400" title="切换命令执行功能">
+             <i class="fas fa-terminal mr-1"></i> 命令执行: <span id="run-command-status">关闭</span>
+           </button>
+           <!-- Add other tool toggles here if needed -->
+        </div>
+        <!-- End Tool Toggles -->
+
+        <div class="bg-white rounded-2xl shadow-sm p-1 flex items-end">
+          <textarea
+            id="message-input"
+            rows="1"
+            placeholder="输入你的消息..."
+            class="flex-1 px-4 py-3 rounded-xl focus:outline-none resize-none max-h-32"
+          ></textarea>
+          <button
+            id="send-button"
+            class="p-3 rounded-xl bg-gray-800 text-white hover:bg-gray-700 transition-colors m-1"
+          >
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+        <p class="text-xs text-gray-400 mt-2 text-center">
+          AI 助手可能会产生不准确的信息。请验证重要信息的准确性。
+        </p>
+      </div>
+    </main>
+
+    <!-- Context Editor Modal -->
+    <div id="context-editor-modal" class="modal-overlay hidden">
+      <div class="modal-panel space-y-4">
+        <h3 class="text-lg font-semibold text-gray-800">编辑关联窗口内容</h3>
+        <div>
+          <label class="block text-sm font-medium text-gray-700"
+            >窗口标题</label
+          >
+          <input
+            type="text"
+            id="edit-context-title"
+            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700"
+            >窗口内容</label
+          >
+          <textarea
+            id="edit-context-content"
+            rows="10"
+            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 resize-y text-sm"
+          ></textarea>
+        </div>
+        <img id="edit-context-screenshot" src="" alt="Window Screenshot" />
+
+        <div class="flex justify-end space-x-2">
+          <button
+            id="cancel-context-edit"
+            class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 rounded-md"
+          >
+            取消
+          </button>
+          <button
+            id="save-context-edit"
+            class="px-4 py-2 text-sm font-medium text-white bg-gray-800 rounded-md hover:bg-gray-700"
+          >
+            保存
+          </button>
+        </div>
+      </div>
+    </div>
+
+     <!-- Action Editor Modal -->
+     <div id="action-editor-modal" class="modal-overlay hidden">
+       <div class="modal-panel space-y-4">
+         <h3 class="text-lg font-semibold text-gray-800">编辑 Quicker 动作</h3>
+         <div>
+           <label class="block text-sm font-medium text-gray-700 mb-1">可用动作列表</label>
+           <div id="action-list" class="max-h-60 overflow-y-auto border border-gray-200 rounded-md p-2 bg-gray-50">
+             <!-- Action items will be dynamically added here -->
+             <p class="text-xs text-gray-500 text-center">没有动作</p>
+           </div>
+         </div>
+         <div class="flex items-center space-x-2">
+            <input
+             type="text"
+             id="new-action-name"
+             class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+             placeholder="输入新的 Quicker 动作名称..."
+            />
+            <button
+             id="add-action-button"
+             class="px-3 py-1.5 text-sm font-medium text-white bg-gray-800 rounded-md hover:bg-gray-700"
+            >
+             <i class="fas fa-plus"></i> 添加
+            </button>
+         </div>
+
+         <div class="flex justify-end space-x-2">
+           <button
+             id="close-action-editor"
+             class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 rounded-md"
+           >
+             关闭
+           </button>
+           <button
+             id="save-action-list-button"
+             class="px-4 py-2 text-sm font-medium text-white bg-gray-800 rounded-md hover:bg-gray-700"
+           >
+             保存动作
+           </button>
+         </div>
+       </div>
+     </div>
+
+    <script>
+      // Configure marked for markdown parsing and highlighting
+      marked.setOptions({
+        highlight: function (code, lang) {
+          const language = hljs.getLanguage(lang) ? lang : 'plaintext' // Default to plaintext if lang not found
+          return hljs.highlight(code, { language }).value
+        },
+        breaks: true, // Render newlines as <br>
+      })
+
+      // Define global subprogram names that match config.js definitions
+      window.SUBPROGRAM_NAMES = {
+        GET_CONTEXT: 'GetContextWithVisuals',
+        EXECUTE_COMMAND: 'ExecuteCommand',
+        EXECUTE_ACTION: 'runQuickerAction'
+      }
+    </script>
+  </body>
+</html>
