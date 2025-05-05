@@ -45,7 +45,9 @@ export async function readContextWindow() {
         
         if (innerResult && typeof innerResult === 'object') {
             // 根据子程序返回的成功状态决定执行结果
-            const success = innerResult.success === true;
+            const success = typeof innerResult.success === 'string'
+                ? innerResult.success.toLowerCase() === 'true'
+                : Boolean(innerResult.success);
             const content = innerResult.content || '';
             const error = innerResult.error || '';
             
@@ -182,7 +184,9 @@ export async function writeToContextWindow(params) {
         
         if (innerResult && typeof innerResult === 'object') {
             // 根据子程序返回的成功状态决定执行结果
-            const success = innerResult.success === true;
+            const success = typeof innerResult.success === 'string'
+                ? innerResult.success.toLowerCase() === 'true'
+                : Boolean(innerResult.success);
             const message = innerResult.message || '';
             const error = innerResult.error || '';
             
