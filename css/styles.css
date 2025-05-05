@@ -75,7 +75,9 @@
 .context-text {
   flex-grow: 1;
   min-width: 0;
-  truncate: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .context-status-area {
@@ -487,4 +489,69 @@ textarea.focus\:ring-blue-500 {
 /* 覆盖所有内联背景色样式 */
 .dark-mode [style*="background-color"] {
   background-color: #252525 !important;
+}
+
+/* 确保深色模式下context-text样式正确 */
+.dark-mode .context-text {
+  color: #d0d0d0;
+}
+
+/* 深色模式下的context相关元素样式 */
+.dark-mode #context-default-icon {
+  color: #a0a0a0;
+}
+
+.dark-mode #context-status {
+  color: #a0a0a0;
+}
+
+.dark-mode #edit-context-button {
+  color: #a0a0a0;
+}
+
+.dark-mode #edit-context-button:hover {
+  color: #d0d0d0;
+}
+
+.dark-mode .context-button-area {
+  border-color: #404040;
+}
+
+.dark-mode .context-button-flex {
+  background-color: #252525;
+}
+
+.dark-mode #context-screenshot-preview {
+  border-color: #505050;
+}
+
+/* 上下文区域样式优化 */
+#context-button-area {
+  transition: all 0.2s ease;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+#context-button-area:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.dark-mode #context-button-area:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* 深色模式下的上下文相关模态框样式 */
+.dark-mode #context-editor-modal .text-gray-800 {
+  color: #e0e0e0;
+}
+
+.dark-mode #context-editor-modal .text-gray-700 {
+  color: #d0d0d0;
+}
+
+/* 响应式调整 */
+@media (max-width: 640px) {
+  .context-text {
+    max-width: 180px;
+  }
 }

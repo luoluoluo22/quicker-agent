@@ -14,7 +14,21 @@ export const MAX_HISTORY_MESSAGES = 30
 export const SUBPROGRAM_NAMES = {
     GET_CONTEXT: 'GetContextWithVisuals',
     EXECUTE_COMMAND: 'ExecuteCommand',
-    EXECUTE_ACTION: 'ExecuteAction'
+    EXECUTE_ACTION: 'ExecuteAction',
+    READ_CONTEXT_WINDOW: 'ReadContextWindow',
+    WRITE_TO_CONTEXT_WINDOW: 'WriteToContextWindow'
+}
+
+// 上下文工具名称与描述
+export const CONTEXT_TOOLS = {
+    READ_CONTEXT_WINDOW: {
+        name: 'readContextWindow',
+        description: '读取当前关联窗口的内容'
+    },
+    WRITE_TO_CONTEXT_WINDOW: {
+        name: 'writeToContextWindow',
+        description: '将指定内容写入当前关联窗口'
+    }
 }
 
 // 上下文元数据配置
@@ -77,6 +91,21 @@ pwd
 <runQuickerAction>
 动作名称
 </runQuickerAction>
+
+## readContextWindow
+描述：读取当前关联窗口的内容。这个工具会根据窗口类型自动选择最合适的方法来读取内容。
+用法：
+<readContextWindow>
+</readContextWindow>
+
+## writeToContextWindow
+描述：将指定内容写入当前关联窗口。系统会根据窗口类型自动选择最合适的写入方法。
+用法：
+<writeToContextWindow>
+  <content><![CDATA[要写入的内容]]></content>
+  <mode>append</mode>  <!-- 可选值: append/insert/override -->
+  <position>end</position>  <!-- 可选值: start/end/cursor -->
+</writeToContextWindow>
 
 ## 文件操作工具
 如果需要文件操作，可以通过runCommand执行相关命令：
@@ -223,6 +252,27 @@ Get-Content config.js
 
 您需要我执行其中任何一个动作吗？
 </taskComplete>
+
+## 上下文窗口操作示例
+
+<think>
+用户请求我获取当前窗口的内容。我将使用readContextWindow工具来获取关联窗口的内容。
+这个工具会根据窗口类型自动选择最合适的方法来读取内容。
+</think>
+
+<readContextWindow>
+</readContextWindow>
+
+<think>
+我已经获取到窗口内容，现在我需要分析这些内容并回复用户。根据内容显示，这似乎是一个...
+接下来，我将使用writeToContextWindow工具将处理后的内容写回窗口。
+</think>
+
+<writeToContextWindow>
+  <content><![CDATA[这是我处理后要写入的内容]]></content>
+  <mode>append</mode>
+  <position>end</position>
+</writeToContextWindow>
 
 ## 不需要工具的回答示例
 

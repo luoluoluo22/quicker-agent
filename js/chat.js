@@ -8,6 +8,10 @@ import { actionManager } from './action.js'
 // 聊天管理器初始化标记
 const CHAT_MANAGER_INITIALIZED = 'quicker_chat_manager_initialized'
 
+// 添加新的正则表达式来匹配上下文窗口读写工具标签
+const readContextWindowRegex = /<readContextWindow>([\s\S]*?)<\/readContextWindow>/gs;
+const writeToContextWindowRegex = /<writeToContextWindow>([\s\S]*?)<\/writeToContextWindow>/gs;
+
 class ChatManager {
     constructor() {
         // 初始化属性为 null
@@ -528,12 +532,12 @@ class ChatManager {
             this.logAIResponse(accumulatedText);
 
             // 解析响应文本，查找命令和动作标签
-            const commandRegex = /<runCommand>(.*?)<\/runCommand>/s
-            const actionRegex = /<runQuickerAction>(.*?)<\/runQuickerAction>/s
-            const thinkRegex = /<think>([\s\S]*?)<\/think>/gs
-            const taskCompleteRegex = /<taskComplete>([\s\S]*?)<\/taskComplete>/gs
+            const commandRegex = /<runCommand>(.*?)<\/runCommand>/s;
+            const actionRegex = /<runQuickerAction>(.*?)<\/runQuickerAction>/s;
+            const thinkRegex = /<think>([\s\S]*?)<\/think>/gs;
+            const taskCompleteRegex = /<taskComplete>([\s\S]*?)<\/taskComplete>/gs;
             
-            console.log('ChatManager: 开始解析AI响应文本，长度:', accumulatedText.length)
+            console.log('ChatManager: 开始解析AI响应文本，长度:', accumulatedText.length);
             
             // 初始化显示文本
             let displayedText = accumulatedText;
@@ -569,16 +573,139 @@ class ChatManager {
                 console.log('ChatManager: 已处理任务完成标签，保留内容但去除标签');
             }
             
+            // 优先处理上下文窗口读写工具
+            // 处理读取关联窗口内容
+            const readWindowMatch = readContextWindowRegex.exec(accumulatedText);
+            if (readWindowMatch) {
+                console.log('ChatManager: 准备读取关联窗口内容');
+                displayedText = accumulatedText.replace(readContextWindowRegex, ''); // 移除工具标签
+                
+                try {
+                    // 导入并调用读取窗口内容功能
+                    console.log(`ChatManager: 导入readContextWindow函数`);
+                    const { readContextWindow, displayWindowOperationResult } = await import('./window_operations.js');
+                    console.log(`ChatManager: 调用readContextWindow函数`);
+                    const result = await readContextWindow();
+                    console.log(`ChatManager: readContextWindow执行完成，结果:`, result);
+                    
+                    // 显示操作结果
+                    console.log(`ChatManager: 显示窗口读取结果`);
+                    displayWindowOperationResult(result, '读取');
+                    
+                    // 检查是否需要将结果返回给AI继续处理
+                    if (!accumulatedText.includes('<taskComplete>')) {
+                        console.log('ChatManager: 窗口读取后需要继续与AI交互');
+                        // 构建工具结果消息 - 但不添加到UI中显示
+                        const toolResultMessage = `type:text\ntext:[tool for 'readContextWindow'] Result:"${
+                            result.success 
+                                ? '窗口内容读取成功:\n' + result.content.replace(/"/g, '\\"') 
+                                : '窗口内容读取失败: ' + result.error.replace(/"/g, '\\"')
+                        }"`;
+                        console.log('ChatManager: 添加窗口读取结果消息:', toolResultMessage.substring(0, 100) + '...');
+                        
+                        // 不在UI显示工具结果消息，只添加到消息历史
+                        this.messages.push({ role: 'user', content: toolResultMessage });
+                        
+                        await this.processToolResult();
+                    }
+                } catch (error) {
+                    console.error(`ChatManager: 窗口内容读取处理出错:`, error);
+                    // 导入工具显示错误信息
+                    const { addExecutionResultMessage } = await import('./utils.js');
+                    addExecutionResultMessage({
+                        success: false,
+                        operation: '读取窗口内容',
+                        error: error.message || '未知错误'
+                    }, '窗口操作');
+                }
+                
+                // 所有标签处理完成后，更新UI显示文本
+                aiMessageContent.innerHTML = marked.parse(displayedText);
+                console.log(`ChatManager: 窗口内容读取处理完成`);
+                return;
+            }
+
+            // 处理写入内容到关联窗口
+            const writeWindowMatch = writeToContextWindowRegex.exec(accumulatedText);
+            if (writeWindowMatch && writeWindowMatch[1]) {
+                console.log('ChatManager: 准备写入内容到关联窗口');
+                
+                // 解析写入参数
+                try {
+                    // 提取内容、模式和位置
+                    const contentMatch = /<content>([\s\S]*?)<\/content>/gs.exec(writeWindowMatch[1]);
+                    const modeMatch = /<mode>([\s\S]*?)<\/mode>/gs.exec(writeWindowMatch[1]);
+                    const positionMatch = /<position>([\s\S]*?)<\/position>/gs.exec(writeWindowMatch[1]);
+                    
+                    // 获取内容（必须）
+                    if (!contentMatch || !contentMatch[1]) {
+                        throw new Error('写入内容未提供');
+                    }
+                    const content = contentMatch[1].trim();
+                    
+                    // 获取模式（可选）
+                    const mode = modeMatch && modeMatch[1] ? modeMatch[1].trim() : 'append';
+                    
+                    // 获取位置（可选）
+                    const position = positionMatch && positionMatch[1] ? positionMatch[1].trim() : 'end';
+                    
+                    // 移除工具标签
+                    displayedText = accumulatedText.replace(writeToContextWindowRegex, '');
+                    
+                    // 导入并调用写入窗口内容功能
+                    console.log(`ChatManager: 导入writeToContextWindow函数，参数:`, { content, mode, position });
+                    const { writeToContextWindow, displayWindowOperationResult } = await import('./window_operations.js');
+                    console.log(`ChatManager: 调用writeToContextWindow函数`);
+                    const result = await writeToContextWindow({ content, mode, position });
+                    console.log(`ChatManager: writeToContextWindow执行完成，结果:`, result);
+                    
+                    // 显示操作结果
+                    console.log(`ChatManager: 显示窗口写入结果`);
+                    displayWindowOperationResult(result, '写入');
+                    
+                    // 检查是否需要将结果返回给AI继续处理
+                    if (!accumulatedText.includes('<taskComplete>')) {
+                        console.log('ChatManager: 窗口写入后需要继续与AI交互');
+                        // 构建工具结果消息 - 但不添加到UI中显示
+                        const toolResultMessage = `type:text\ntext:[tool for 'writeToContextWindow'] Result:"${
+                            result.success 
+                                ? '内容写入成功: ' + (result.message || '操作完成').replace(/"/g, '\\"') 
+                                : '内容写入失败: ' + result.error.replace(/"/g, '\\"')
+                        }"`;
+                        console.log('ChatManager: 添加窗口写入结果消息:', toolResultMessage.substring(0, 100) + '...');
+                        
+                        // 不在UI显示工具结果消息，只添加到消息历史
+                        this.messages.push({ role: 'user', content: toolResultMessage });
+                        
+                        await this.processToolResult();
+                    }
+                } catch (error) {
+                    console.error(`ChatManager: 窗口内容写入处理出错:`, error);
+                    // 导入工具显示错误信息
+                    const { addExecutionResultMessage } = await import('./utils.js');
+                    addExecutionResultMessage({
+                        success: false,
+                        operation: '写入窗口内容',
+                        error: error.message || '未知错误'
+                    }, '窗口操作');
+                }
+                
+                // 所有标签处理完成后，更新UI显示文本
+                aiMessageContent.innerHTML = marked.parse(displayedText);
+                console.log(`ChatManager: 窗口内容写入处理完成`);
+                return;
+            }
+            
             // 所有标签处理完成后，更新UI显示文本
             aiMessageContent.innerHTML = marked.parse(displayedText);
             
-            const commandMatch = accumulatedText.match(commandRegex)
-            const actionMatch = accumulatedText.match(actionRegex)
+            const commandMatch = accumulatedText.match(commandRegex);
+            const actionMatch = accumulatedText.match(actionRegex);
             
-            console.log('ChatManager: 命令匹配结果:', commandMatch ? `找到命令: ${commandMatch[1]}` : '未找到命令')
-            console.log('ChatManager: 动作匹配结果:', actionMatch ? `找到动作: ${actionMatch[1]}` : '未找到动作')
-            console.log('ChatManager: 命令执行状态:', toggleManager.isCommandExecutionEnabled())
-            console.log('ChatManager: 动作执行状态:', toggleManager.isActionExecutionEnabled())
+            console.log('ChatManager: 命令匹配结果:', commandMatch ? `找到命令: ${commandMatch[1]}` : '未找到命令');
+            console.log('ChatManager: 动作匹配结果:', actionMatch ? `找到动作: ${actionMatch[1]}` : '未找到动作');
+            console.log('ChatManager: 命令执行状态:', toggleManager.isCommandExecutionEnabled());
+            console.log('ChatManager: 动作执行状态:', toggleManager.isActionExecutionEnabled());
 
             // 处理命令执行
             if (commandMatch && commandMatch[1] && toggleManager.isCommandExecutionEnabled()) {
@@ -1062,6 +1189,129 @@ class ChatManager {
                 console.log('ChatManager: 已处理任务完成标签，保留内容但去除标签');
             }
             
+            // 优先处理上下文窗口读写工具
+            // 处理读取关联窗口内容
+            const readWindowMatch = readContextWindowRegex.exec(accumulatedText);
+            if (readWindowMatch) {
+                console.log('ChatManager: 准备读取关联窗口内容');
+                displayedText = accumulatedText.replace(readContextWindowRegex, ''); // 移除工具标签
+                
+                try {
+                    // 导入并调用读取窗口内容功能
+                    console.log(`ChatManager: 导入readContextWindow函数`);
+                    const { readContextWindow, displayWindowOperationResult } = await import('./window_operations.js');
+                    console.log(`ChatManager: 调用readContextWindow函数`);
+                    const result = await readContextWindow();
+                    console.log(`ChatManager: readContextWindow执行完成，结果:`, result);
+                    
+                    // 显示操作结果
+                    console.log(`ChatManager: 显示窗口读取结果`);
+                    displayWindowOperationResult(result, '读取');
+                    
+                    // 检查是否需要将结果返回给AI继续处理
+                    if (!accumulatedText.includes('<taskComplete>')) {
+                        console.log('ChatManager: 窗口读取后需要继续与AI交互');
+                        // 构建工具结果消息 - 但不添加到UI中显示
+                        const toolResultMessage = `type:text\ntext:[tool for 'readContextWindow'] Result:"${
+                            result.success 
+                                ? '窗口内容读取成功:\n' + result.content.replace(/"/g, '\\"') 
+                                : '窗口内容读取失败: ' + result.error.replace(/"/g, '\\"')
+                        }"`;
+                        console.log('ChatManager: 添加窗口读取结果消息:', toolResultMessage.substring(0, 100) + '...');
+                        
+                        // 不在UI显示工具结果消息，只添加到消息历史
+                        this.messages.push({ role: 'user', content: toolResultMessage });
+                        
+                        await this.processToolResult();
+                    }
+                } catch (error) {
+                    console.error(`ChatManager: 窗口内容读取处理出错:`, error);
+                    // 导入工具显示错误信息
+                    const { addExecutionResultMessage } = await import('./utils.js');
+                    addExecutionResultMessage({
+                        success: false,
+                        operation: '读取窗口内容',
+                        error: error.message || '未知错误'
+                    }, '窗口操作');
+                }
+                
+                // 所有标签处理完成后，更新UI显示文本
+                aiMessageContent.innerHTML = marked.parse(displayedText);
+                console.log(`ChatManager: 窗口内容读取处理完成`);
+                return;
+            }
+
+            // 处理写入内容到关联窗口
+            const writeWindowMatch = writeToContextWindowRegex.exec(accumulatedText);
+            if (writeWindowMatch && writeWindowMatch[1]) {
+                console.log('ChatManager: 准备写入内容到关联窗口');
+                
+                // 解析写入参数
+                try {
+                    // 提取内容、模式和位置
+                    const contentMatch = /<content>([\s\S]*?)<\/content>/gs.exec(writeWindowMatch[1]);
+                    const modeMatch = /<mode>([\s\S]*?)<\/mode>/gs.exec(writeWindowMatch[1]);
+                    const positionMatch = /<position>([\s\S]*?)<\/position>/gs.exec(writeWindowMatch[1]);
+                    
+                    // 获取内容（必须）
+                    if (!contentMatch || !contentMatch[1]) {
+                        throw new Error('写入内容未提供');
+                    }
+                    const content = contentMatch[1].trim();
+                    
+                    // 获取模式（可选）
+                    const mode = modeMatch && modeMatch[1] ? modeMatch[1].trim() : 'append';
+                    
+                    // 获取位置（可选）
+                    const position = positionMatch && positionMatch[1] ? positionMatch[1].trim() : 'end';
+                    
+                    // 移除工具标签
+                    displayedText = accumulatedText.replace(writeToContextWindowRegex, '');
+                    
+                    // 导入并调用写入窗口内容功能
+                    console.log(`ChatManager: 导入writeToContextWindow函数，参数:`, { content, mode, position });
+                    const { writeToContextWindow, displayWindowOperationResult } = await import('./window_operations.js');
+                    console.log(`ChatManager: 调用writeToContextWindow函数`);
+                    const result = await writeToContextWindow({ content, mode, position });
+                    console.log(`ChatManager: writeToContextWindow执行完成，结果:`, result);
+                    
+                    // 显示操作结果
+                    console.log(`ChatManager: 显示窗口写入结果`);
+                    displayWindowOperationResult(result, '写入');
+                    
+                    // 检查是否需要将结果返回给AI继续处理
+                    if (!accumulatedText.includes('<taskComplete>')) {
+                        console.log('ChatManager: 窗口写入后需要继续与AI交互');
+                        // 构建工具结果消息 - 但不添加到UI中显示
+                        const toolResultMessage = `type:text\ntext:[tool for 'writeToContextWindow'] Result:"${
+                            result.success 
+                                ? '内容写入成功: ' + (result.message || '操作完成').replace(/"/g, '\\"') 
+                                : '内容写入失败: ' + result.error.replace(/"/g, '\\"')
+                        }"`;
+                        console.log('ChatManager: 添加窗口写入结果消息:', toolResultMessage.substring(0, 100) + '...');
+                        
+                        // 不在UI显示工具结果消息，只添加到消息历史
+                        this.messages.push({ role: 'user', content: toolResultMessage });
+                        
+                        await this.processToolResult();
+                    }
+                } catch (error) {
+                    console.error(`ChatManager: 窗口内容写入处理出错:`, error);
+                    // 导入工具显示错误信息
+                    const { addExecutionResultMessage } = await import('./utils.js');
+                    addExecutionResultMessage({
+                        success: false,
+                        operation: '写入窗口内容',
+                        error: error.message || '未知错误'
+                    }, '窗口操作');
+                }
+                
+                // 所有标签处理完成后，更新UI显示文本
+                aiMessageContent.innerHTML = marked.parse(displayedText);
+                console.log(`ChatManager: 窗口内容写入处理完成`);
+                return;
+            }
+            
             // 所有标签处理完成后，更新UI显示文本
             aiMessageContent.innerHTML = marked.parse(displayedText);
             
@@ -1070,6 +1320,8 @@ class ChatManager {
             
             console.log('ChatManager: 命令匹配结果:', commandMatch ? `找到命令: ${commandMatch[1]}` : '未找到命令');
             console.log('ChatManager: 动作匹配结果:', actionMatch ? `找到动作: ${actionMatch[1]}` : '未找到动作');
+            console.log('ChatManager: 命令执行状态:', toggleManager.isCommandExecutionEnabled());
+            console.log('ChatManager: 动作执行状态:', toggleManager.isActionExecutionEnabled());
 
             // 递归处理命令执行
             if (commandMatch && commandMatch[1] && toggleManager.isCommandExecutionEnabled()) {
@@ -1206,10 +1458,20 @@ class ChatManager {
 
         } catch (error) {
             console.error('ChatManager: 处理工具结果时出错:', error);
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'text-red-500 text-sm mt-2';
-            errorDiv.textContent = `处理工具结果错误: ${error.message}`;
-            this.messagesContainer.appendChild(errorDiv);
+            
+            // 显示错误消息
+            try {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'bg-red-100 p-3 rounded-lg text-red-700 my-2';
+                errorDiv.textContent = `处理工具结果错误: ${error.message}`;
+                this.messagesContainer.appendChild(errorDiv);
+            } catch (e) {
+                console.error('ChatManager: 显示错误消息时出错:', e);
+            }
+        } finally {
+            // 无论成功或失败，都重置处理状态
+            this.isProcessing = false
+            console.log('ChatManager: 设置 isProcessing = false')
         }
     }
 }
