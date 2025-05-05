@@ -56,7 +56,7 @@ class ActionManager {
 
         // 点击动作列表项
         this.actionListContainer.addEventListener('click', (event) => {
-            const actionItem = event.target.closest('.action-item')
+            const actionItem = event.target.closest('.action-list-item')
             if (actionItem) {
                 const actionName = actionItem.dataset.actionName
                 if (actionName) {
@@ -107,14 +107,26 @@ class ActionManager {
 
     // 过滤动作列表
     filterActions() {
-        if (!this.actionSearchInput || !this.actionListContainer) return
-
-        const searchTerm = this.actionSearchInput.value.toLowerCase()
-        this.filteredActions = this.actions.filter(action => 
-            action.name.toLowerCase().includes(searchTerm) ||
-            (action.description && action.description.toLowerCase().includes(searchTerm))
-        )
+        if (!this.actionSearchInput) return
+        
+        // 获取搜索词
+        const searchTerm = this.actionSearchInput.value.toLowerCase().trim()
+        
+        // 如果搜索框为空，显示所有动作
+        if (searchTerm === '') {
+            this.filteredActions = [...this.actions];
+        } else {
+            // 否则过滤匹配的动作
+            this.filteredActions = this.actions.filter(action => 
+                action.name.toLowerCase().includes(searchTerm) ||
+                (action.description && action.description.toLowerCase().includes(searchTerm))
+            );
+        }
+        
+        // 重置选中索引
         this.selectedActionIndex = -1
+        
+        // 重新渲染过滤后的列表
         this.renderActionList()
     }
 
@@ -134,7 +146,7 @@ class ActionManager {
 
         const actionItems = this.filteredActions.map((action, index) => {
             const actionItem = document.createElement('div')
-            actionItem.className = `action-item flex items-center justify-between p-2 hover:bg-gray-50 cursor-pointer ${
+            actionItem.className = `action-list-item ${
                 index === this.selectedActionIndex ? 'bg-gray-100' : ''
             }`
             actionItem.dataset.actionName = action.name
@@ -148,18 +160,38 @@ class ActionManager {
             nameSpan.className = 'flex-1'
             nameSpan.textContent = action.name
 
+            // 按钮容器
+            const buttonContainer = document.createElement('div')
+            buttonContainer.className = 'flex items-center'
+
+            // 编辑按钮
+            const editButton = document.createElement('button')
+            editButton.className = 'text-blue-500 hover:text-blue-700 mr-2'
+            editButton.innerHTML = '<i class="fas fa-edit"></i>'
+            editButton.title = '编辑动作名称'
+            editButton.addEventListener('click', (e) => {
+                e.stopPropagation()
+                this.editActionName(action.name)
+            })
+
             // 删除按钮
             const deleteButton = document.createElement('button')
-            deleteButton.className = 'text-red-500 hover:text-red-700 ml-2'
+            deleteButton.className = 'text-red-500 hover:text-red-700'
             deleteButton.innerHTML = '<i class="fas fa-trash"></i>'
+            deleteButton.title = '删除动作'
             deleteButton.addEventListener('click', (e) => {
                 e.stopPropagation()
                 this.deleteAction(action.name)
             })
 
+            // 添加按钮到容器
+            buttonContainer.appendChild(editButton)
+            buttonContainer.appendChild(deleteButton)
+
+            // 构建动作项
             actionItem.appendChild(icon)
             actionItem.appendChild(nameSpan)
-            actionItem.appendChild(deleteButton)
+            actionItem.appendChild(buttonContainer)
 
             return actionItem
         })
@@ -379,8 +411,44 @@ class ActionManager {
                 return false
             }
 
-            await v.setVar('quickerActions', JSON.stringify(this.actions))
-            return true
+            // 从设置管理器导入保存设置的方法
+            try {
+                const { settingsManager } = await import('./settings.js');
+                
+                // 准备要保存的设置对象（先获取当前设置，然后添加动作列表）
+                const currentSettings = settingsManager.getCurrentSettings();
+                
+                // 将当前动作列表添加到设置中
+                const settingsToSave = {
+                    ...currentSettings,
+                    quickerActions: this.actions.map(action => ({
+                        id: action.id || this.generateActionId(action.name),
+                        name: action.name
+                    }))
+                };
+                
+                console.log(`ActionManager: 准备通过子程序保存 ${this.actions.length} 个动作`);
+                
+                // 使用子程序保存设置
+                const result = await settingsManager.saveAIChatSettings(settingsToSave);
+                
+                if (result) {
+                    console.log('ActionManager: 动作列表保存成功');
+                    return true;
+                } else {
+                    console.warn('ActionManager: 通过子程序保存动作列表失败');
+                    
+                    // 失败后尝试使用备用方法
+                    console.log('ActionManager: 尝试使用备用方法保存动作列表');
+                    await v.setVar('quickerActions', JSON.stringify(this.actions));
+                    return true;
+                }
+            } catch (importError) {
+                console.error('ActionManager: 导入settingsManager失败，使用备用方法保存:', importError);
+                // 备用方法：直接保存到变量
+                await v.setVar('quickerActions', JSON.stringify(this.actions));
+                return true;
+            }
         } catch (error) {
             console.error('Error saving actions:', error)
             return false
@@ -401,35 +469,38 @@ class ActionManager {
         console.log('ActionManager: 已清除所有动作')
     }
 
+    // 生成动作ID
+    generateActionId(actionName) {
+        return Date.now() + '-' + Math.floor(Math.random() * 10000) + '-' + actionName.substring(0, 5).replace(/\s/g, '_');
+    }
+
     // 添加动作
     addAction(actionName, id = null) {
-        if (!actionName || typeof actionName !== 'string' || actionName.trim() === '') {
-            console.error('Invalid action name')
+        if (!actionName || actionName.trim() === '') {
+            console.warn('ActionManager: 尝试添加空动作名称')
             return false
         }
-        
-        // 检查是否已存在同名动作
-        if (this.actions.some(action => action.name === actionName)) {
-            console.warn(`Action "${actionName}" already exists`)
+
+        // 检查动作是否已存在
+        const existing = this.actions.find(action => action.name === actionName)
+        if (existing) {
+            console.log(`ActionManager: 动作 "${actionName}" 已存在`)
             return false
         }
+
+        // 添加新动作到列表
+        const newAction = {
+            name: actionName,
+            id: id || this.generateActionId(actionName)
+        }
         
-        // 使用提供的ID或生成新ID
-        const actionId = id || Date.now() + Math.floor(Math.random() * 1000)
+        // 将新动作添加到动作列表，而不是替换整个列表
+        this.actions.push(newAction)
+        console.log(`ActionManager: 已添加动作 "${actionName}"`)
         
-        this.actions.push({ 
-            id: actionId,
-            name: actionName 
-        })
-        
-        // 排序动作列表
-        this.actions.sort((a, b) => a.name.localeCompare(b.name))
-        
-        // 更新过滤后的列表
-        this.filterActions()
-        
-        // 保存动作列表
-        this.saveActions()
+        // 更新筛选后的动作列表，并重新渲染
+        this.filteredActions = [...this.actions]
+        this.renderActionList()
         
         return true
     }
@@ -454,7 +525,7 @@ class ActionManager {
         const newActionNameInput = document.getElementById('new-action-name')
         const addActionButton = document.getElementById('add-action-button')
         const closeActionEditorButton = document.getElementById('close-action-editor')
-        const saveActionListButton = document.getElementById('save-action-list')
+        const saveActionListButton = document.getElementById('save-action-list-button')
 
         if (!actionEditorModal || !newActionNameInput || !addActionButton) {
             console.error('Required DOM elements not found for ActionEditor')
@@ -603,6 +674,42 @@ class ActionManager {
                 error
             };
         }
+    }
+
+    // 新增：编辑动作名称功能
+    editActionName(oldName) {
+        // 查找该动作在数组中的索引
+        const actionIndex = this.actions.findIndex(action => action.name === oldName)
+        if (actionIndex === -1) {
+            console.error(`ActionManager: 找不到名称为 "${oldName}" 的动作`)
+            return
+        }
+
+        // 提示用户输入新名称
+        const newName = prompt('请输入新的动作名称:', oldName)
+        
+        // 如果用户取消或输入空名称，则不做修改
+        if (!newName || newName.trim() === '') {
+            return
+        }
+
+        // 检查新名称是否已存在（排除当前动作）
+        const nameExists = this.actions.some(action => 
+            action.name === newName && action.name !== oldName
+        )
+        
+        if (nameExists) {
+            alert(`动作名称 "${newName}" 已存在，请使用其他名称。`)
+            return
+        }
+
+        // 更新动作名称
+        this.actions[actionIndex].name = newName
+        console.log(`ActionManager: 动作名称已从 "${oldName}" 更改为 "${newName}"`)
+        
+        // 更新筛选后的列表并保存
+        this.filterActions()
+        this.saveActions()
     }
 }
 

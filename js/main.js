@@ -9,6 +9,64 @@ import { AI_THINKING } from './config.js'
 // 检查是否已经初始化过
 const INITIALIZATION_FLAG = 'quicker_chat_initialized'
 
+// 夜间模式管理
+const darkModeManager = {
+    // 存储键名
+    STORAGE_KEY: 'quicker_chat_dark_mode',
+    
+    // 获取夜间模式状态
+    isDarkMode() {
+        return localStorage.getItem(this.STORAGE_KEY) === 'true';
+    },
+    
+    // 保存夜间模式状态
+    saveDarkMode(isDark) {
+        localStorage.setItem(this.STORAGE_KEY, isDark ? 'true' : 'false');
+    },
+    
+    // 应用夜间模式样式
+    applyDarkMode(isDark) {
+        if (isDark) {
+            document.body.classList.add('dark-mode');
+            // 切换图标
+            const icon = document.querySelector('#dark-mode-toggle i');
+            if (icon) {
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+            }
+        } else {
+            document.body.classList.remove('dark-mode');
+            // 切换图标
+            const icon = document.querySelector('#dark-mode-toggle i');
+            if (icon) {
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+            }
+        }
+    },
+    
+    // 初始化夜间模式
+    initialize() {
+        // 加载保存的状态
+        const isDark = this.isDarkMode();
+        
+        // 应用保存的样式
+        this.applyDarkMode(isDark);
+        
+        // 添加切换按钮事件
+        const toggleButton = document.getElementById('dark-mode-toggle');
+        if (toggleButton) {
+            toggleButton.addEventListener('click', () => {
+                const newDarkMode = !this.isDarkMode();
+                this.saveDarkMode(newDarkMode);
+                this.applyDarkMode(newDarkMode);
+            });
+        }
+        
+        console.log(`夜间模式管理器初始化完成，当前状态: ${isDark ? '夜间' : '日间'}`);
+    }
+};
+
 // 从URL Hash中解析状态
 function parseStateFromHash() {
     try {
@@ -42,6 +100,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('main.js: 初始化 Quicker 聊天应用...')
     
     try {
+        // 初始化夜间模式
+        darkModeManager.initialize();
+        
         // 初始化全局配置对象，供其他组件使用
         window.appConfig = { AI_THINKING };
         console.log('main.js: 已初始化全局配置对象，包含 AI_THINKING');
@@ -135,5 +196,6 @@ export {
     actionManager,
     settingsManager,
     chatManager,
-    toggleManager
+    toggleManager,
+    darkModeManager
 } 

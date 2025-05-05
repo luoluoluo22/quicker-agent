@@ -92,7 +92,7 @@
   display: none;
   margin-top: 8px;
   max-width: 100%;
-  max-height: 300px;
+  max-height: 100px;
   width: auto;
   height: auto;
   border-radius: 4px;
@@ -169,4 +169,322 @@
   padding: 2px 6px;
   font-size: 0.8rem;
   margin-left: 4px;
+}
+
+/* 调整文本输入框和文本区域的默认高度 */
+#message-input,
+#edit-context-content {
+  min-height: 80px;
+  /* 增加默认高度 */
+}
+
+#new-action-name {
+  min-height: 40px;
+  /* 动作输入框高度 */
+}
+
+textarea.focus\:ring-blue-500 {
+  min-height: 80px;
+}
+
+/* 夜间模式样式 */
+.dark-mode {
+  color-scheme: dark;
+  background-color: #141414 !important;
+}
+
+.dark-mode body {
+  background-color: #141414 !important;
+  color: #e0e0e0;
+}
+
+/* 添加更明确的Tailwind背景色覆盖 */
+.dark-mode [class*="bg-gray-"] {
+  background-color: #252525 !important;
+}
+
+.dark-mode [class*="bg-white"] {
+  background-color: #252525 !important;
+}
+
+/* 特别指定 tailwind的浅色背景样式 */
+.dark-mode .bg-gray-100 {
+  background-color: #1e1e1e !important;
+}
+
+.dark-mode .bg-gray-200 {
+  background-color: #252525 !important;
+}
+
+.dark-mode .bg-gray-50 {
+  background-color: #1a1a1a !important;
+}
+
+/* 覆盖Tailwind的内联样式 */
+.dark-mode [style*="background-color: rgb(243 244 246)"] {
+  background-color: #1e1e1e !important;
+}
+
+/* 单独设置消息卡片的背景色 */
+.dark-mode #chat-container .bg-white {
+  background-color: #252525;
+}
+
+/* 设置面板和其他区域的背景色 */
+.dark-mode .bg-white:not(#chat-container .bg-white) {
+  background-color: #252525;
+}
+
+/* 消息卡片中的图标背景 */
+.dark-mode .bg-gray-100.flex.items-center.justify-center {
+  background-color: #252525;
+}
+
+.dark-mode .text-gray-700,
+.dark-mode .text-gray-600,
+.dark-mode .text-gray-800 {
+  color: #d0d0d0;
+}
+
+.dark-mode .text-gray-500,
+.dark-mode .text-gray-400 {
+  color: #a0a0a0;
+}
+
+.dark-mode .border-gray-300,
+.dark-mode .border-gray-200 {
+  border-color: #404040;
+}
+
+.dark-mode .shadow-sm {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.dark-mode #message-input,
+.dark-mode input,
+.dark-mode textarea {
+  background-color: #252525;
+  color: #e0e0e0;
+  border-color: #505050;
+}
+
+.dark-mode .markdown-body pre,
+.dark-mode .markdown-body code {
+  background-color: #252525;
+}
+
+.dark-mode .modal-panel {
+  background-color: #252525;
+}
+
+.dark-mode .context-active {
+  background-color: #1a382a;
+  border-color: #2a5a40;
+}
+
+.dark-mode .context-active:hover {
+  background-color: #2a5a40;
+}
+
+.dark-mode .modal-overlay {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+.dark-mode .action-list-item {
+  background-color: #252525 !important;
+  border-color: #404040;
+  color: #d0d0d0;
+}
+
+.dark-mode .action-list-item:hover {
+  background-color: #303030 !important;
+}
+
+.dark-mode .action-item.bg-gray-100 {
+  background-color: #303030;
+}
+
+.dark-mode #default-agent-prompt-display {
+  background-color: #2a2a2a;
+  padding: 8px;
+  border-radius: 4px;
+  color: #d0d0d0;
+  border: 1px solid #404040;
+}
+
+/* 夜间模式切换按钮样式 */
+#dark-mode-toggle {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-size: 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4b5563;
+  transition: all 0.2s ease;
+}
+
+.dark-mode #dark-mode-toggle {
+  color: #e0e0e0;
+}
+
+#dark-mode-toggle:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.dark-mode #dark-mode-toggle:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 深色模式下调整动作按钮颜色 */
+.dark-mode .action-item button.text-blue-500 {
+  color: #60a5fa;
+}
+
+.dark-mode .action-item button.text-blue-500:hover {
+  color: #93c5fd;
+}
+
+.dark-mode .action-item button.text-red-500 {
+  color: #f87171;
+}
+
+.dark-mode .action-item button.text-red-500:hover {
+  color: #fca5a5;
+}
+
+/* 确保动作编辑和删除按钮在悬停时有足够的间距 */
+.action-item button {
+  padding: 4px;
+  margin: 0 2px;
+}
+
+/* 调整动作项在深色模式下的样式 */
+.dark-mode .action-item {
+  background-color: #252525;
+  border-color: #404040;
+}
+
+.dark-mode .action-item:hover {
+  background-color: #303030;
+}
+
+/* 执行结果卡片的深色模式样式 */
+.dark-mode .bg-gray-200 {
+  background-color: #252525 !important;
+}
+
+.dark-mode .bg-gray-300 {
+  background-color: #333333;
+}
+
+.dark-mode .bg-gray-100 {
+  background-color: #1e1e1e;
+}
+
+/* 执行结果卡片中的文本颜色 */
+.dark-mode .text-gray-800 {
+  color: #e0e0e0;
+}
+
+.dark-mode .text-gray-600 {
+  color: #b0b0b0;
+}
+
+/* 错误信息背景 */
+.dark-mode .bg-red-100 {
+  background-color: #3a1c1c;
+  border-color: #5a2828;
+}
+
+.dark-mode .text-red-800 {
+  color: #f87171;
+}
+
+/* 成功状态文本 */
+.dark-mode .text-green-700 {
+  color: #4ade80;
+}
+
+/* 失败状态文本 */
+.dark-mode .text-red-700 {
+  color: #f87171;
+}
+
+/* 展开/折叠按钮 */
+.dark-mode .text-blue-600 {
+  color: #60a5fa;
+}
+
+.dark-mode .text-blue-600:hover {
+  color: #93c5fd;
+}
+
+/* 执行结果卡片样式 */
+.execution-result-card {
+  border: 1px solid #e5e7eb;
+  transition: background-color 0.3s ease;
+}
+
+/* 执行结果卡片深色模式样式 */
+.dark-mode .execution-result-card {
+  background-color: #252525 !important;
+  border-color: #404040;
+  color: #e0e0e0;
+}
+
+/* 确保动作项风格统一 */
+.action-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  transition: background-color 0.3s ease;
+  padding: 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+
+.action-item:hover {
+  background-color: #f9fafb;
+}
+
+/* 动作列表容器深色模式 */
+.dark-mode #action-list {
+  background-color: #252525 !important;
+  border-color: #404040;
+}
+
+/* 确保命令执行卡片在深色模式下显示正确 */
+.dark-mode .bg-gray-200.execution-result-card {
+  background-color: #252525 !important;
+}
+
+/* 在深色模式下修复背景色问题 */
+.dark-mode .bg-white {
+  background-color: #252525;
+}
+
+/* 统一背景风格 */
+#action-list {
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  transition: background-color 0.3s ease;
+  padding: 8px;
+}
+
+/* 动作卡片图标颜色 */
+.dark-mode .action-list-item i {
+  color: #a0a0a0;
+}
+
+/* 覆盖所有内联背景色样式 */
+.dark-mode [style*="background-color"] {
+  background-color: #252525 !important;
 }

@@ -90,7 +90,7 @@ export function addExecutionResultMessage(result, type = '命令') {
         const resultId = `execution-result-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
         messageDiv.innerHTML = `
-            <div class="bg-gray-200 p-4 rounded-2xl shadow-sm">
+            <div class="bg-gray-200 p-4 rounded-2xl shadow-sm execution-result-card">
                 <div class="flex items-start space-x-3">
                     <div class="flex-shrink-0 w-8 h-8 rounded-lg bg-gray-300 flex items-center justify-center">
                         <i class="fas ${iconClass} text-gray-600"></i>
