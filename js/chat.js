@@ -414,13 +414,18 @@ class ChatManager {
             console.log(`ChatManager: 检查动作执行状态: ${isActionEnabled}`);
             
             if (isActionEnabled) {
-                const availableActions = actionManager.getActions().map(action => action.name);
+                const availableActions = actionManager.getActions();
                 console.log(`ChatManager: 可用动作数量: ${availableActions.length}`);
                 if (availableActions.length > 0) {
-                    // 将可用动作列表添加到系统提示词
-                    const actionListText = `可用动作列表:\n${availableActions.map(action => `- ${action}`).join('\n')}`;
+                    // 拼接结构化动作信息
+                    const actionListText = `可用动作列表：\n` +
+                        availableActions.map(action => {
+                            let desc = action.description ? `  描述：${action.description}` : '';
+                            let paramDesc = action.paramDescription ? `  参数说明：${action.paramDescription}` : '';
+                            return `- ${action.name}\n${desc}${desc && paramDesc ? '\n' : ''}${paramDesc}`;
+                        }).join('\n');
                     systemPrompts.push(actionListText);
-                    console.log('ChatManager: 添加动作列表到系统提示词');
+                    console.log('ChatManager: 添加结构化动作列表到系统提示词');
                 }
             }
             
@@ -565,7 +570,10 @@ class ChatManager {
 
             // 解析响应文本，查找命令和动作标签
             const commandRegex = /<runCommand>(.*?)<\/runCommand>/s;
-            const actionRegex = /<runQuickerAction>(.*?)<\/runQuickerAction>/s;
+            // 动作格式支持两种: 1. 简单格式 <runQuickerAction>动作名</runQuickerAction>
+            // 2. XML格式 <runQuickerAction name="动作名" param="参数值"></runQuickerAction>
+            // 3. 嵌套标签格式: <runQuickerAction><name>动作名</name><param>参数值</param></runQuickerAction>
+            const actionRegex = /<runQuickerAction(?:\s+name="([^"]*)"(?:\s+param="([^"]*)")?[^>]*>|\s*)(?:([^<]+))?<\/runQuickerAction>|<runQuickerAction>\s*<name>([^<]+)<\/name>(?:\s*<param>([^<]+)<\/param>)?\s*<\/runQuickerAction>/i;
             const thinkRegex = /<think>([\s\S]*?)<\/think>/gs;
             const taskCompleteRegex = /<taskComplete>([\s\S]*?)<\/taskComplete>/gs;
             
@@ -735,7 +743,9 @@ class ChatManager {
             const actionMatch = accumulatedText.match(actionRegex);
             
             console.log('ChatManager: 命令匹配结果:', commandMatch ? `找到命令: ${commandMatch[1]}` : '未找到命令');
-            console.log('ChatManager: 动作匹配结果:', actionMatch ? `找到动作: ${actionMatch[1]}` : '未找到动作');
+            console.log('ChatManager: 动作匹配结果:', actionMatch ? 
+                `找到动作: ${actionMatch[1] || actionMatch[3] || '未能解析动作名称'}${actionMatch[2] ? `, 参数: ${actionMatch[2]}` : ''}` 
+                : '未找到动作');
             console.log('ChatManager: 命令执行状态:', toggleManager.isCommandExecutionEnabled());
             console.log('ChatManager: 动作执行状态:', toggleManager.isActionExecutionEnabled());
 
@@ -812,16 +822,34 @@ class ChatManager {
                 }
             }
             // 递归处理动作执行
-            else if (actionMatch && actionMatch[1] && toggleManager.isActionExecutionEnabled()) {
-                const actionName = actionMatch[1].trim();
+            else if (actionMatch && toggleManager.isActionExecutionEnabled()) {
+                // 提取动作名和参数 - 有两种可能的格式:
+                // 1. XML属性格式: <runQuickerAction name="动作名" param="参数值">...</runQuickerAction>
+                // 2. 简单内容格式: <runQuickerAction>动作名</runQuickerAction>
+                let actionName, paramValue = '';
+                
+                if (actionMatch[1]) { // XML属性格式的name属性
+                    actionName = actionMatch[1].trim();
+                    paramValue = actionMatch[2] ? actionMatch[2].trim() : ''; // XML属性格式的param属性
+                } else if (actionMatch[3]) { // 简单内容格式
+                    actionName = actionMatch[3].trim();
+                } else if (actionMatch[4]) { // 嵌套XML格式
+                    actionName = actionMatch[4].trim();
+                    paramValue = actionMatch[5] ? actionMatch[5].trim() : '';
+                } else {
+                    console.error('ChatManager: 无法解析动作名称');
+                    return;
+                }
+                
+                console.log(`ChatManager: 解析动作 "${actionName}", 参数: "${paramValue}"`);
                 displayedText = accumulatedText.replace(actionRegex, ''); // 移除动作标签
                 
                 // 检查动作是否存在
                 const actions = actionManager.getActions();
                 if (actions.some(a => a.name === actionName)) {
                     // 执行动作
-                    console.log(`ChatManager: 执行动作 "${actionName}"`);
-                    const actionResult = await actionManager.executeAction(actionName);
+                    console.log(`ChatManager: 执行动作 "${actionName}", 参数: "${paramValue}"`);
+                    const actionResult = await actionManager.executeAction(actionName, paramValue);
                     
                     // 获取动作执行结果并存储
                     this.lastActionResult = actionResult?.output || `动作: "${actionName}" 已执行`;
@@ -1064,13 +1092,18 @@ class ChatManager {
             console.log(`ChatManager: 检查动作执行状态: ${isActionEnabled}`);
             
             if (isActionEnabled) {
-                const availableActions = actionManager.getActions().map(action => action.name);
+                const availableActions = actionManager.getActions();
                 console.log(`ChatManager: 可用动作数量: ${availableActions.length}`);
                 if (availableActions.length > 0) {
-                    // 将可用动作列表添加到系统提示词
-                    const actionListText = `可用动作列表:\n${availableActions.map(action => `- ${action}`).join('\n')}`;
+                    // 拼接结构化动作信息
+                    const actionListText = `可用动作列表：\n` +
+                        availableActions.map(action => {
+                            let desc = action.description ? `  描述：${action.description}` : '';
+                            let paramDesc = action.paramDescription ? `  参数说明：${action.paramDescription}` : '';
+                            return `- ${action.name}\n${desc}${desc && paramDesc ? '\n' : ''}${paramDesc}`;
+                        }).join('\n');
                     systemPrompts.push(actionListText);
-                    console.log('ChatManager: 添加动作列表到系统提示词');
+                    console.log('ChatManager: 添加结构化动作列表到系统提示词');
                 }
             }
             
@@ -1215,7 +1248,10 @@ class ChatManager {
 
             // 解析响应文本，查找命令和动作标签
             const commandRegex = /<runCommand>(.*?)<\/runCommand>/s;
-            const actionRegex = /<runQuickerAction>(.*?)<\/runQuickerAction>/s;
+            // 动作格式支持两种: 1. 简单格式 <runQuickerAction>动作名</runQuickerAction>
+            // 2. XML格式 <runQuickerAction name="动作名" param="参数值"></runQuickerAction>
+            // 3. 嵌套标签格式: <runQuickerAction><name>动作名</name><param>参数值</param></runQuickerAction>
+            const actionRegex = /<runQuickerAction(?:\s+name="([^"]*)"(?:\s+param="([^"]*)")?[^>]*>|\s*)(?:([^<]+))?<\/runQuickerAction>|<runQuickerAction>\s*<name>([^<]+)<\/name>(?:\s*<param>([^<]+)<\/param>)?\s*<\/runQuickerAction>/i;
             const thinkRegex = /<think>([\s\S]*?)<\/think>/gs;
             const taskCompleteRegex = /<taskComplete>([\s\S]*?)<\/taskComplete>/gs;
             
@@ -1385,7 +1421,9 @@ class ChatManager {
             const actionMatch = accumulatedText.match(actionRegex);
             
             console.log('ChatManager: 命令匹配结果:', commandMatch ? `找到命令: ${commandMatch[1]}` : '未找到命令');
-            console.log('ChatManager: 动作匹配结果:', actionMatch ? `找到动作: ${actionMatch[1]}` : '未找到动作');
+            console.log('ChatManager: 动作匹配结果:', actionMatch ? 
+                `找到动作: ${actionMatch[1] || actionMatch[3] || '未能解析动作名称'}${actionMatch[2] ? `, 参数: ${actionMatch[2]}` : ''}` 
+                : '未找到动作');
             console.log('ChatManager: 命令执行状态:', toggleManager.isCommandExecutionEnabled());
             console.log('ChatManager: 动作执行状态:', toggleManager.isActionExecutionEnabled());
 
@@ -1462,16 +1500,34 @@ class ChatManager {
                 }
             }
             // 递归处理动作执行
-            else if (actionMatch && actionMatch[1] && toggleManager.isActionExecutionEnabled()) {
-                const actionName = actionMatch[1].trim();
+            else if (actionMatch && toggleManager.isActionExecutionEnabled()) {
+                // 提取动作名和参数 - 有两种可能的格式:
+                // 1. XML属性格式: <runQuickerAction name="动作名" param="参数值">...</runQuickerAction>
+                // 2. 简单内容格式: <runQuickerAction>动作名</runQuickerAction>
+                let actionName, paramValue = '';
+                
+                if (actionMatch[1]) { // XML属性格式的name属性
+                    actionName = actionMatch[1].trim();
+                    paramValue = actionMatch[2] ? actionMatch[2].trim() : ''; // XML属性格式的param属性
+                } else if (actionMatch[3]) { // 简单内容格式
+                    actionName = actionMatch[3].trim();
+                } else if (actionMatch[4]) { // 嵌套XML格式
+                    actionName = actionMatch[4].trim();
+                    paramValue = actionMatch[5] ? actionMatch[5].trim() : '';
+                } else {
+                    console.error('ChatManager: 无法解析动作名称');
+                    return;
+                }
+                
+                console.log(`ChatManager: 解析动作 "${actionName}", 参数: "${paramValue}"`);
                 displayedText = accumulatedText.replace(actionRegex, ''); // 移除动作标签
                 
                 // 检查动作是否存在
                 const actions = actionManager.getActions();
                 if (actions.some(a => a.name === actionName)) {
                     // 执行动作
-                    console.log(`ChatManager: 执行动作 "${actionName}"`);
-                    const actionResult = await actionManager.executeAction(actionName);
+                    console.log(`ChatManager: 执行动作 "${actionName}", 参数: "${paramValue}"`);
+                    const actionResult = await actionManager.executeAction(actionName, paramValue);
                     
                     // 获取动作执行结果并存储
                     this.lastActionResult = actionResult?.output || `动作: "${actionName}" 已执行`;

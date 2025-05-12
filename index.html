@@ -284,7 +284,10 @@
      <!-- Action Editor Modal -->
      <div id="action-editor-modal" class="modal-overlay hidden">
        <div class="modal-panel space-y-4">
-         <h3 class="text-lg font-semibold text-gray-800">编辑 Quicker 动作</h3>
+         <h3 id="action-editor-title" class="text-lg font-semibold text-gray-800">添加 Quicker 动作</h3>
+         
+         <!-- 列表模式 - 默认显示 -->
+         <div id="action-list-mode">
          <div>
            <label class="block text-sm font-medium text-gray-700 mb-1">可用动作列表</label>
            <div id="action-list" class="max-h-60 overflow-y-auto border border-gray-200 rounded-md p-2 bg-gray-50">
@@ -292,7 +295,7 @@
              <p class="text-xs text-gray-500 text-center">没有动作</p>
            </div>
          </div>
-         <div class="flex items-center space-x-2">
+           <div class="flex items-center space-x-2 mt-3">
             <input
              type="text"
              id="new-action-name"
@@ -306,8 +309,15 @@
              <i class="fas fa-plus"></i> 添加
             </button>
          </div>
-
-         <div class="flex justify-end space-x-2">
+           <div class="mt-2">
+             <label for="new-action-desc" class="block text-xs font-medium text-gray-700 mb-1">动作描述（可选，简要说明动作作用和返回结果）</label>
+             <textarea id="new-action-desc" rows="2" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-xs" placeholder="如：此动作用于打开指定网址，返回打开结果..."></textarea>
+           </div>
+           <div class="mt-2">
+             <label for="new-action-param-desc" class="block text-xs font-medium text-gray-700 mb-1">参数说明（可选，说明参数格式/示例）</label>
+             <textarea id="new-action-param-desc" rows="2" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-xs" placeholder="如：参数为要打开的网址，如 https://www.baidu.com"></textarea>
+           </div>
+           <div class="flex justify-end space-x-2 mt-4">
            <button
              id="close-action-editor"
              class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 rounded-md"
@@ -320,9 +330,44 @@
            >
              保存动作
            </button>
-         </div>
        </div>
      </div>
+
+         <!-- 编辑模式 - 默认隐藏 -->
+         <div id="action-edit-mode" class="hidden">
+           <div class="flex items-center mb-4">
+             <button id="back-to-list-button" class="text-blue-600 hover:text-blue-800 mr-2">
+               <i class="fas fa-arrow-left"></i> 返回列表
+                                   </button>
+             <span class="text-sm text-gray-500">正在编辑动作</span>
+           </div>
+           
+           <div class="mb-3">
+             <label for="edit-action-name" class="block text-sm font-medium text-gray-700 mb-1">动作名称</label>
+             <input type="text" id="edit-action-name" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm" placeholder="动作名称..." />
+           </div>
+           
+           <div class="mb-3">
+             <label for="edit-action-desc" class="block text-sm font-medium text-gray-700 mb-1">动作描述</label>
+             <textarea id="edit-action-desc" rows="3" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm" placeholder="简要说明动作作用和返回结果..."></textarea>
+                    </div>
+           
+           <div class="mb-3">
+             <label for="edit-action-param-desc" class="block text-sm font-medium text-gray-700 mb-1">参数说明</label>
+             <textarea id="edit-action-param-desc" rows="3" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm" placeholder="说明参数格式/示例..."></textarea>
+                                       </div>
+           
+           <div class="flex justify-end space-x-2 mt-4">
+             <button id="cancel-edit-button" class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 rounded-md">
+               取消
+             </button>
+             <button id="save-edit-button" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+               保存编辑
+             </button>
+                                       </div>
+                                       </div>
+                                     </div>
+                                   </div>
 
     <script>
       // Configure marked for markdown parsing and highlighting

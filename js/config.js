@@ -89,7 +89,8 @@ pwd
 描述：请求执行可用的Quicker动作。
 用法：
 <runQuickerAction>
-动作名称
+<name>动作名称</name>
+<param>参数值</param>
 </runQuickerAction>
 
 ## readContextWindow
@@ -220,7 +221,16 @@ Get-ChildItem
 </think>
 
 <runQuickerAction>
-打开浏览器
+<name>打开浏览器</name>
+</runQuickerAction>
+
+<think>
+用户要求我执行名为"打开浏览器"的Quicker动作，并访问百度网站。我需要使用runQuickerAction工具，并传递URL参数。
+</think>
+
+<runQuickerAction>
+<name>打开浏览器</name>
+<param>https://www.baidu.com</param>
 </runQuickerAction>
 
 ## 文件操作示例

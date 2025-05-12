@@ -8,6 +8,7 @@ class ActionManager {
         this.actions = []
         this.filteredActions = []
         this.selectedActionIndex = -1
+        this.currentEditingIndex = -1
         
         // 延迟初始化事件监听器，等待 DOM 完全加载
         if (document.readyState === 'loading') {
@@ -224,7 +225,7 @@ class ActionManager {
     }
 
     // 执行动作
-    async executeAction(actionName) {
+    async executeAction(actionName, paramText = '') {
         console.log(`ActionManager: 开始执行动作 "${actionName}"`);
         
         const v = typeof $quickerSp !== 'undefined' ? $quickerSp : null
@@ -244,10 +245,11 @@ class ActionManager {
 
         try {
             const subprogramName = SUBPROGRAM_NAMES.EXECUTE_ACTION;
-            console.log(`ActionManager: 调用子程序 ${subprogramName}，参数:`, {actionName});
+            console.log(`ActionManager: 调用子程序 ${subprogramName}，参数:`, {actionName, paramText});
             
             const spResult = await v(subprogramName, {
-                actionName: actionName
+                actionName: actionName,
+                param: paramText || ''
             })
             console.log(`ActionManager: 子程序调用结果:`, spResult);
 
@@ -457,7 +459,13 @@ class ActionManager {
 
     // 获取所有动作
     getActions() {
-        return [...this.actions]
+        // 返回完整结构，兼容老数据
+        return this.actions.map(action => ({
+            id: action.id,
+            name: action.name,
+            description: action.description || '',
+            paramDescription: action.paramDescription || ''
+        }))
     }
 
     // 清除所有动作
@@ -465,6 +473,7 @@ class ActionManager {
         this.actions = []
         this.filteredActions = []
         this.selectedActionIndex = -1
+        this.currentEditingIndex = -1
         this.renderActionList()
         console.log('ActionManager: 已清除所有动作')
     }
@@ -475,7 +484,7 @@ class ActionManager {
     }
 
     // 添加动作
-    addAction(actionName, id = null) {
+    addAction(actionName, id = null, description = '', paramDescription = '') {
         if (!actionName || actionName.trim() === '') {
             console.warn('ActionManager: 尝试添加空动作名称')
             return false
@@ -491,7 +500,9 @@ class ActionManager {
         // 添加新动作到列表
         const newAction = {
             name: actionName,
-            id: id || this.generateActionId(actionName)
+            id: id || this.generateActionId(actionName),
+            description: description || '',
+            paramDescription: paramDescription || ''
         }
         
         // 将新动作添加到动作列表，而不是替换整个列表
@@ -523,6 +534,8 @@ class ActionManager {
         // 获取必要的DOM元素
         const actionEditorModal = document.getElementById('action-editor-modal')
         const newActionNameInput = document.getElementById('new-action-name')
+        const newActionDescInput = document.getElementById('new-action-desc')
+        const newActionParamDescInput = document.getElementById('new-action-param-desc')
         const addActionButton = document.getElementById('add-action-button')
         const closeActionEditorButton = document.getElementById('close-action-editor')
         const saveActionListButton = document.getElementById('save-action-list-button')
@@ -539,9 +552,13 @@ class ActionManager {
         // 添加动作按钮事件
         newAddActionButton.addEventListener('click', () => {
             const actionName = newActionNameInput.value.trim()
+            const actionDesc = newActionDescInput ? newActionDescInput.value.trim() : ''
+            const paramDesc = newActionParamDescInput ? newActionParamDescInput.value.trim() : ''
             if (actionName) {
-                if (this.addAction(actionName)) {
+                if (this.addAction(actionName, null, actionDesc, paramDesc)) {
                     newActionNameInput.value = ''
+                    if (newActionDescInput) newActionDescInput.value = ''
+                    if (newActionParamDescInput) newActionParamDescInput.value = ''
                     this.renderActionList()
                     // 成功消息
                     const message = document.createElement('div')
@@ -653,89 +670,117 @@ class ActionManager {
         
         // 准备参数
         const params = { actionName };
-        console.log(`ActionManager: 子程序参数:`, params);
-        
-        try {
-            // 直接调用API
-            console.log(`ActionManager: 直接调用子程序...`);
-            const result = await v(subprogramName, params);
-            console.log(`ActionManager: 子程序调用结果:`, result);
-            
-            return {
-                success: true,
-                message: '子程序调用成功',
-                result
-            };
-        } catch (error) {
-            console.error(`ActionManager: 调用子程序失败:`, error);
-            return {
-                success: false,
-                message: `调用子程序失败: ${error.message || '未知错误'}`,
-                error
-            };
-        }
+        // ...如需后续实现可在此补充
     }
 
-    // 新增：编辑动作名称功能
+    // 编辑动作
     editActionName(oldName) {
-        // 查找该动作在数组中的索引
-        const actionIndex = this.actions.findIndex(action => action.name === oldName)
-        if (actionIndex === -1) {
-            console.error(`ActionManager: 找不到名称为 "${oldName}" 的动作`)
-            return
-        }
-
-        // 提示用户输入新名称
-        const newName = prompt('请输入新的动作名称:', oldName)
+        console.log(`ActionManager: 开始编辑动作 "${oldName}"`);
         
-        // 如果用户取消或输入空名称，则不做修改
-        if (!newName || newName.trim() === '') {
-            return
+        // 记录当前编辑的动作索引
+        this.currentEditingIndex = this.actions.findIndex(action => action.name === oldName);
+        if (this.currentEditingIndex === -1) {
+            console.error(`ActionManager: 找不到名称为 "${oldName}" 的动作`);
+            return;
         }
-
-        // 检查新名称是否已存在（排除当前动作）
-        const nameExists = this.actions.some(action => 
-            action.name === newName && action.name !== oldName
-        )
         
-        if (nameExists) {
-            alert(`动作名称 "${newName}" 已存在，请使用其他名称。`)
-            return
+        const action = this.actions[this.currentEditingIndex];
+        console.log(`ActionManager: 找到待编辑动作:`, action);
+        
+        // 获取UI元素
+        const actionEditorModal = document.getElementById('action-editor-modal');
+        const actionListMode = document.getElementById('action-list-mode');
+        const actionEditMode = document.getElementById('action-edit-mode');
+        const editActionName = document.getElementById('edit-action-name');
+        const editActionDesc = document.getElementById('edit-action-desc');
+        const editActionParamDesc = document.getElementById('edit-action-param-desc');
+        const backToListBtn = document.getElementById('back-to-list-button');
+        const cancelEditBtn = document.getElementById('cancel-edit-button');
+        const saveEditBtn = document.getElementById('save-edit-button');
+        const actionEditorTitle = document.getElementById('action-editor-title');
+        
+        if (!actionEditorModal || !actionListMode || !actionEditMode) {
+            console.error('ActionManager: 找不到编辑器必要元素');
+            return;
         }
-
-        // 更新动作名称
-        this.actions[actionIndex].name = newName
-        console.log(`ActionManager: 动作名称已从 "${oldName}" 更改为 "${newName}"`)
         
-        // 更新筛选后的列表并保存
-        this.filterActions()
-        this.saveActions()
+        // 填充编辑表单
+        if (editActionName) editActionName.value = action.name || '';
+        if (editActionDesc) editActionDesc.value = action.description || '';
+        if (editActionParamDesc) editActionParamDesc.value = action.paramDescription || '';
+        
+        // 切换到编辑模式
+        actionListMode.classList.add('hidden');
+        actionEditMode.classList.remove('hidden');
+        if (actionEditorTitle) actionEditorTitle.textContent = '编辑 Quicker 动作';
+        
+        // 返回按钮事件
+        if (backToListBtn) {
+            backToListBtn.onclick = () => this.exitEditMode();
+        }
+        
+        // 取消按钮事件
+        if (cancelEditBtn) {
+            cancelEditBtn.onclick = () => this.exitEditMode();
+        }
+        
+        // 保存编辑按钮事件
+        if (saveEditBtn) {
+            saveEditBtn.onclick = () => {
+                const newName = editActionName ? editActionName.value.trim() : '';
+                const newDesc = editActionDesc ? editActionDesc.value.trim() : '';
+                const newParamDesc = editActionParamDesc ? editActionParamDesc.value.trim() : '';
+                
+                if (!newName) {
+                    alert('动作名称不能为空');
+                    return;
+                }
+                
+                // 检查重名（排除自己）
+                const nameExists = this.actions.some((a, i) => 
+                    a.name === newName && i !== this.currentEditingIndex
+                );
+                
+                if (nameExists) {
+                    alert(`动作名称 "${newName}" 已存在，请使用其他名称。`);
+                    return;
+                }
+                
+                // 更新动作
+                this.actions[this.currentEditingIndex].name = newName;
+                this.actions[this.currentEditingIndex].description = newDesc;
+                this.actions[this.currentEditingIndex].paramDescription = newParamDesc;
+                
+                console.log(`ActionManager: 动作更新成功:`, this.actions[this.currentEditingIndex]);
+                
+                // 保存并退出编辑模式
+                this.saveActions();
+                this.filterActions();
+                this.exitEditMode();
+            };
+        }
+        
+        // 显示模态框
+        actionEditorModal.classList.remove('hidden');
+    }
+    
+    // 退出编辑模式
+    exitEditMode() {
+        console.log('ActionManager: 退出编辑模式');
+        
+        // 获取UI元素
+        const actionListMode = document.getElementById('action-list-mode');
+        const actionEditMode = document.getElementById('action-edit-mode');
+        const actionEditorTitle = document.getElementById('action-editor-title');
+        
+        // 切换回列表模式
+        if (actionListMode) actionListMode.classList.remove('hidden');
+        if (actionEditMode) actionEditMode.classList.add('hidden');
+        if (actionEditorTitle) actionEditorTitle.textContent = '添加 Quicker 动作';
+        
+        // 清除当前编辑状态
+        this.currentEditingIndex = -1;
     }
 }
 
 export const actionManager = new ActionManager()
-
-// 将测试方法绑定到window对象，便于在控制台调试
-window.testAction = async (actionName) => {
-    console.log(`全局测试: 测试动作 "${actionName}"`);
-    try {
-        const result = await actionManager.testSubprogramCall(actionName);
-        console.log(`全局测试: 测试子程序调用结果:`, result);
-        
-        // 尝试直接执行动作
-        console.log(`全局测试: 尝试直接执行动作`);
-        const execResult = await actionManager.executeAction(actionName);
-        console.log(`全局测试: 动作执行结果:`, execResult);
-        
-        return {
-            testCall: result,
-            execResult: execResult
-        };
-    } catch (error) {
-        console.error(`全局测试: 测试出错:`, error);
-        return {
-            success: false,
-            error: error.message || '未知错误'
-        };
-    }
-}; 
