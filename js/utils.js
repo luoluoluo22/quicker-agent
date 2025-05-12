@@ -1,3 +1,4 @@
+const hljs = window.hljs;
 // HTML 转义函数
 export function escapeHTML(str) {
     if (!str) return ''
@@ -205,11 +206,30 @@ export function addMessage(sender, text, isAI = false) {
     // 代码高亮
     messageDiv.querySelectorAll('pre code').forEach((block) => {
         try {
-            hljs.highlightElement(block)
+            if (hljs && hljs.highlightElement) {
+                hljs.highlightElement(block)
+            }
         } catch (e) {
             console.error('Highlighting error:', e)
         }
+        // 添加一键复制按钮
+        const pre = block.parentElement;
+        if (pre && !pre.querySelector('.copy-code-btn')) {
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'copy-code-btn';
+            copyBtn.innerText = '复制代码';
+            copyBtn.onclick = function() {
+                navigator.clipboard.writeText(block.innerText).then(() => {
+                    copyBtn.innerText = '已复制!';
+                    setTimeout(() => { copyBtn.innerText = '复制代码'; }, 1200);
+                });
+            };
+            pre.appendChild(copyBtn);
+        }
     })
+
+    const aiMessageContent = messageDiv.querySelector('.message-content');
+    aiMessageContent.className = "text-gray-700 message-content markdown-body";
 
     return messageDiv
 } 

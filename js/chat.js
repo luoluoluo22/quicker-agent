@@ -5,6 +5,7 @@ import { contextManager } from './context.js'
 import { toggleManager } from './toggle.js'
 import { actionManager } from './action.js'
 
+const hljs = window.hljs;
 // 聊天管理器初始化标记
 const CHAT_MANAGER_INITIALIZED = 'quicker_chat_manager_initialized'
 
@@ -24,6 +25,9 @@ class ChatManager {
         this.lastMessageSent = 0  // 添加时间戳来防止重复发送
         this.lastCommandResult = null // 存储最后一个命令执行结果
         this.lastActionResult = null // 存储最后一个动作执行结果
+        this.lastFailedUserMessage = null;
+        this.isRetrying = false;
+        this.abortController = null; // 新增：用于中断fetch
         
         // 检查是否已经初始化过
         if (window[CHAT_MANAGER_INITIALIZED]) {
@@ -273,15 +277,29 @@ class ChatManager {
     // 发送消息
     async sendMessage(text) {
         console.log('ChatManager: sendMessage 被调用', text)
-        if (this.isProcessing) {
+        if (this.isProcessing && !this.isRetrying) {
             console.warn('ChatManager: 消息处理中，忽略请求')
             return
         }
-
-        console.log('ChatManager: 设置 isProcessing = true')
+        if (!this.isRetrying) {
+            this.removeRetryOption();
+            this.lastFailedUserMessage = null;
+        }
         this.isProcessing = true
         this.messageInput.disabled = true
-
+        // 切换发送按钮为"停止"
+        if (this.sendButton) {
+            this.sendButton.textContent = '停止';
+            this.sendButton.classList.add('bg-red-500', 'text-white');
+            this.sendButton.classList.remove('bg-gray-800', 'hover:bg-gray-700', 'bg-white', 'hover:bg-gray-100', 'text-gray-800');
+            this.sendButton.onclick = () => {
+                if (this.abortController) {
+                    this.abortController.abort();
+                }
+            };
+        }
+        // 创建AbortController
+        this.abortController = new AbortController();
         try {
             // 检测是否有动作命令，但仅做日志记录，不直接执行
             const userActionMatch = text.match(/^执行动作[：:]\s*(.+)$/);
@@ -493,7 +511,8 @@ class ChatManager {
                     messages: fullMessages,
                     temperature: settings.temperature,
                     stream: true
-                })
+                }),
+                signal: this.abortController.signal // 传入中断信号
             })
 
             if (!response.ok) {
@@ -504,7 +523,14 @@ class ChatManager {
             console.log('ChatManager: 创建 AI 消息元素')
             const aiMessageDiv = this.addMessage('assistant', '')
             const aiMessageContent = aiMessageDiv.querySelector('.message-content')
+            aiMessageContent.classList.add('markdown-body'); // 确保流式渲染的容器也有markdown-body类
             let accumulatedText = ''
+
+            // 显示加载动画
+            const loadingDiv = document.createElement('div')
+            loadingDiv.className = 'ai-loading-animation text-xs text-gray-400 mt-2'
+            loadingDiv.innerHTML = '<span class="dot">AI正在思考<span class="dot-ani">...</span></span>'
+            aiMessageContent.appendChild(loadingDiv)
 
             // 处理流式响应
             console.log('ChatManager: 处理流式响应')
@@ -517,7 +543,9 @@ class ChatManager {
                     // 代码高亮
                     aiMessageContent.querySelectorAll('pre code').forEach((block) => {
                         try {
-                            hljs.highlightElement(block)
+                            if (hljs && hljs.highlightElement) {
+                                hljs.highlightElement(block);
+                            }
                         } catch (e) {
                             console.error('Highlighting error:', e)
                         }
@@ -526,6 +554,10 @@ class ChatManager {
                     // 滚动到底部
                     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight
                 }
+            }
+            // 移除加载动画
+            if (aiMessageContent.querySelector('.ai-loading-animation')) {
+                aiMessageContent.querySelector('.ai-loading-animation').remove()
             }
             console.log('ChatManager: 响应处理完成')
             // 记录AI响应内容
@@ -840,18 +872,38 @@ class ChatManager {
                 this.messages.push({ role: 'assistant', content: displayedText });
             }
 
+            // 在流式响应成功完成后
+            this.lastFailedUserMessage = null;
+            this.isRetrying = false;
+
         } catch (error) {
-            console.error('ChatManager: 发送消息出错:', error)
-            const errorDiv = document.createElement('div')
-            errorDiv.className = 'text-red-500 text-sm mt-2'
-            errorDiv.textContent = `错误: ${error.message}`
-            this.messagesContainer.appendChild(errorDiv)
+            // 移除加载动画
+            const aiMessageContent = document.querySelector('.message-content.markdown-body:last-child');
+            if (aiMessageContent && aiMessageContent.querySelector('.ai-loading-animation')) {
+                aiMessageContent.querySelector('.ai-loading-animation').remove();
+            }
+            console.error('ChatManager: 发送消息出错:', error);
+            this.isProcessing = false;
+            this.isRetrying = false;
+            this.messageInput.disabled = false;
+            this.lastFailedUserMessage = text;
+            this.displayRetryOption(error.message || '未知网络错误');
         } finally {
-            console.log('ChatManager: 设置 isProcessing = false')
-            this.isProcessing = false
-            this.messageInput.disabled = false
-            this.messageInput.focus()
-            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight
+            // 恢复发送按钮为飞机图标
+            if (this.sendButton) {
+                this.sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
+                this.sendButton.classList.remove('bg-red-500', 'text-white');
+                this.sendButton.classList.add('bg-white', 'hover:bg-gray-100', 'text-gray-800');
+                this.sendButton.onclick = (event) => {
+                    event.preventDefault();
+                    this.handleSendMessage();
+                };
+            }
+            this.abortController = null;
+            if (!this.isRetrying) {
+                this.isProcessing = false;
+                this.messageInput.disabled = false;
+            }
         }
     }
 
@@ -1109,7 +1161,8 @@ class ChatManager {
                     messages: fullMessages,
                     temperature: settings.temperature,
                     stream: true
-                })
+                }),
+                signal: this.abortController?.signal // 传入中断信号
             });
 
             if (!response.ok) {
@@ -1120,30 +1173,43 @@ class ChatManager {
             console.log('ChatManager: 创建 AI 消息元素');
             const aiMessageDiv = this.addMessage('assistant', '');
             const aiMessageContent = aiMessageDiv.querySelector('.message-content');
+            aiMessageContent.classList.add('markdown-body'); // 确保流式渲染的容器也有markdown-body类
             let accumulatedText = '';
 
+            // 显示加载动画
+            const loadingDiv = document.createElement('div')
+            loadingDiv.className = 'ai-loading-animation text-xs text-gray-400 mt-2'
+            loadingDiv.innerHTML = '<span class="dot">AI正在思考<span class="dot-ani">...</span></span>'
+            aiMessageContent.appendChild(loadingDiv)
+
             // 处理流式响应
-            console.log('ChatManager: 处理流式响应');
-            const reader = response.body.getReader();
+            console.log('ChatManager: 处理流式响应')
+            const reader = response.body.getReader()
             for await (const chunk of readStream(reader)) {
                 if (chunk.choices && chunk.choices[0] && chunk.choices[0].delta && chunk.choices[0].delta.content) {
-                    accumulatedText += chunk.choices[0].delta.content;
-                    aiMessageContent.innerHTML = marked.parse(accumulatedText);
+                    accumulatedText += chunk.choices[0].delta.content
+                    aiMessageContent.innerHTML = marked.parse(accumulatedText)
                     
                     // 代码高亮
                     aiMessageContent.querySelectorAll('pre code').forEach((block) => {
                         try {
-                            hljs.highlightElement(block);
+                            if (hljs && hljs.highlightElement) {
+                                hljs.highlightElement(block);
+                            }
                         } catch (e) {
                             console.error('Highlighting error:', e);
                         }
-                    });
+                    })
 
                     // 滚动到底部
-                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight
                 }
             }
-            console.log('ChatManager: 响应处理完成');
+            // 移除加载动画
+            if (aiMessageContent.querySelector('.ai-loading-animation')) {
+                aiMessageContent.querySelector('.ai-loading-animation').remove()
+            }
+            console.log('ChatManager: 响应处理完成')
             // 记录AI响应内容
             this.logAIResponse(accumulatedText);
 
@@ -1457,6 +1523,11 @@ class ChatManager {
             }
 
         } catch (error) {
+            // 移除加载动画
+            const aiMessageContent = document.querySelector('.message-content.markdown-body:last-child');
+            if (aiMessageContent && aiMessageContent.querySelector('.ai-loading-animation')) {
+                aiMessageContent.querySelector('.ai-loading-animation').remove();
+            }
             console.error('ChatManager: 处理工具结果时出错:', error);
             
             // 显示错误消息
@@ -1469,9 +1540,76 @@ class ChatManager {
                 console.error('ChatManager: 显示错误消息时出错:', e);
             }
         } finally {
+            // 恢复发送按钮为飞机图标
+            if (this.sendButton) {
+                this.sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
+                this.sendButton.classList.remove('bg-red-500', 'text-white');
+                this.sendButton.classList.add('bg-white', 'hover:bg-gray-100', 'text-gray-800');
+                this.sendButton.onclick = (event) => {
+                    event.preventDefault();
+                    this.handleSendMessage();
+                };
+            }
+            this.abortController = null;
             // 无论成功或失败，都重置处理状态
             this.isProcessing = false
             console.log('ChatManager: 设置 isProcessing = false')
+        }
+    }
+
+    displayRetryOption(errorMessage) {
+        this.removeRetryOption();
+        // 找到最后一个用户消息卡片
+        const lastUserMessageCard = this.messagesContainer.querySelector('.message-animation:last-child');
+        if (lastUserMessageCard) {
+            const lastUserMessageDiv = lastUserMessageCard.querySelector('.flex-1.min-w-0');
+            if (lastUserMessageDiv) {
+                // 创建一个flex容器，右对齐
+                const errorContainer = document.createElement('div');
+                errorContainer.className = 'retry-error-container mt-2 text-xs flex justify-end items-center';
+                // 错误提示
+                const errorText = document.createElement('span');
+                errorText.className = 'text-red-500 mr-2';
+                errorText.textContent = `发送失败: ${errorMessage}`;
+                // 重试按钮
+                const retryButton = document.createElement('button');
+                retryButton.id = 'retry-send-button';
+                retryButton.className = 'px-3 py-1 text-xs border border-gray-300 bg-white hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded transition-colors';
+                retryButton.textContent = '重试';
+                retryButton.onclick = async () => {
+                    if (this.lastFailedUserMessage && !this.isProcessing && !this.isRetrying) {
+                        this.isRetrying = true;
+                        this.removeRetryOption();
+                        // 移除原用户消息卡片
+                        if (lastUserMessageCard && lastUserMessageCard.parentNode) {
+                            lastUserMessageCard.parentNode.removeChild(lastUserMessageCard);
+                        }
+                        // 显示重试中状态（可选）
+                        // const tempRetryStatus = document.createElement('p');
+                        // tempRetryStatus.className = 'text-xs text-yellow-500 italic mt-1';
+                        // tempRetryStatus.textContent = '正在重试...';
+                        // this.messagesContainer.appendChild(tempRetryStatus);
+                        await this.sendMessage(this.lastFailedUserMessage);
+                        // if(tempRetryStatus.parentNode) {
+                        //     tempRetryStatus.parentNode.removeChild(tempRetryStatus);
+                        // }
+                    }
+                };
+                errorContainer.appendChild(errorText);
+                errorContainer.appendChild(retryButton);
+                lastUserMessageDiv.appendChild(errorContainer);
+            }
+        }
+    }
+
+    removeRetryOption() {
+        const existingErrorContainer = this.messagesContainer.querySelector('.retry-error-container');
+        if (existingErrorContainer && existingErrorContainer.parentNode) {
+            existingErrorContainer.parentNode.removeChild(existingErrorContainer);
+        }
+        const tempRetryStatus = this.messagesContainer.querySelector('.text-xs.text-yellow-500.italic.mt-1');
+        if(tempRetryStatus && tempRetryStatus.parentNode) {
+            tempRetryStatus.parentNode.removeChild(tempRetryStatus);
         }
     }
 }
